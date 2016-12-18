@@ -20,12 +20,13 @@ const double r0 = 2.5562;
 
 const double D = 933;//eV
 const double a = 3.615 /1.44;
-
 class Atom {
 public:
 	double x = 0;
 	double y = 0;
 	double z = 0;
+	double E_r = 0;
+	double E_b = 0;
 	double f_x = 0;
 	double f_y = 0;
 	double f_z = 0;
@@ -103,7 +104,7 @@ void calc(vector <vector<Atom>> &contains, int n_x, int n_y, int n_z, double cel
 							double r = sqrt((particle2.x - particle.x) * (particle2.x - particle.x)
 								+ (particle2.y - particle.y) * (particle2.y - particle.y)
 								+ (particle2.z - particle.z) * (particle2.z - particle.z));
-
+							/*
 							//RGL potential
 							double F = A * p * exp(p * (1 - r / r0)) / r0
 								- 0.5 / sqrt(s * s * exp(-2 * q * (r / r0 - 1))) * 2 * q * s * s * exp(2 * q * (1 - r / r0)) / r0;
@@ -122,13 +123,8 @@ void calc(vector <vector<Atom>> &contains, int n_x, int n_y, int n_z, double cel
 							particle.f_x -= dir_x;
 							particle.f_y -= dir_y;
 							particle.f_z -= dir_z;
-
-							/*
+							*/
 							//Потенциал Леннард-Джонса. Работает
-							double r = sqrt((particle2.x - particle.x) * (particle2.x - particle.x)
-								+ (particle2.y - particle.y) * (particle2.y - particle.y)
-								+ (particle2.z - particle.z) * (particle2.z - particle.z));
-
 							double F = 12 * D / a * (pow(a / r, 13) - pow(a / r, 7));
 
 							double dir_x = particle2.x - particle.x;
@@ -144,7 +140,7 @@ void calc(vector <vector<Atom>> &contains, int n_x, int n_y, int n_z, double cel
 
 							particle.f_x -= dir_x;
 							particle.f_y -= dir_y;
-							particle.f_z -= dir_z;*/
+							particle.f_z -= dir_z;
 						}
 					}
 				}
@@ -163,6 +159,76 @@ void dump(string filename, unsigned int size, vector <vector<Atom>> &contains) {
 		}
 	}
 	out.close();
+}
+
+double coh_energy(vector <vector<Atom>> &contains, int n_x, int n_y, int n_z, double cell_size_x, double cell_size_y, double cell_size_z) {
+	
+	double E_coh = 0;
+	
+	for (int i = 0; i < n_x * n_y * n_z; ++i) {
+		for (Atom& particle : contains[i]) {
+			particle.f_x = 0;
+			particle.f_y = 0;
+			particle.f_z = 0;
+			int atomcell_x = i % n_x;
+			int atomcell_y = i / n_x % n_y;
+			int atomcell_z = i / (n_x * n_y);
+			double E_b_temp = 0;
+			for (int dx = -1; dx <= 1; ++dx) {
+				for (int dy = -1; dy <= 1; ++dy) {
+					for (int dz = -1; dz <= 1; ++dz) {
+						for (Atom particle2 : contains[
+							(atomcell_x + n_x + dx) % n_x +
+								(atomcell_y + n_y + dy) % n_y * n_x +
+								(atomcell_z + n_z + dz) % n_z * n_y * n_x]) {
+							//check for translation
+							if (abs(particle2.x - particle.x) > cell_size_x / 2) { //дальше одной клетки
+								if (particle2.x > particle.x) {
+									particle2.x -= cell_size_x; //в соседнюю клетку справа перейдём
+								}
+								else {
+									particle2.x += cell_size_x; //в соседнюю клетку слева перейдём
+								}
+							}
+							if (abs(particle2.y - particle.y) > cell_size_y / 2) { //дальше одной клетки
+								if (particle2.y > particle.y) {
+									particle2.y -= cell_size_y; //в соседнюю клетку справа перейдём
+								}
+								else {
+									particle2.y += cell_size_y; //в соседнюю клетку слева перейдём
+								}
+							}
+							if (abs(particle2.z - particle.z) > cell_size_z / 2) { //дальше одной клетки
+								if (particle2.z > particle.z) {
+									particle2.z -= cell_size_z; //в соседнюю клетку справа перейдём
+								}
+								else {
+									particle2.z += cell_size_z; //в соседнюю клетку слева перейдём
+								}
+							}
+							if (toofar(particle, particle2, cutoff)) {
+								continue;
+							}
+
+							//distance
+							double r = sqrt((particle2.x - particle.x) * (particle2.x - particle.x)
+								+ (particle2.y - particle.y) * (particle2.y - particle.y)
+								+ (particle2.z - particle.z) * (particle2.z - particle.z));
+
+							//Coh
+							particle.E_r += A * exp(-p * (r / r0 - 1));
+							E_b_temp += s * s * exp(-2 * q * (r / r0 - 1));
+						}
+					}
+				}
+			}
+			particle.E_b -= sqrt(E_b_temp);
+			E_coh += particle.E_r + particle.E_b;
+			particle.E_r = 0;
+			particle.E_b = 0;
+		}
+	}
+	return E_coh;
 }
 
 int main(int argc, char* argv[]) {
@@ -245,11 +311,13 @@ int main(int argc, char* argv[]) {
 		prev[z * n_y * n_x + y * n_x + x].push_back(tmp);
 		curr[z * n_y * n_x + y * n_x + x].push_back(tmp);
 	}
-
+	
 	//calculate prev forces
 	calc(prev, n_x, n_y, n_z, cell_size_x, cell_size_y, cell_size_z);
 	//dump iteration
+	cout << "frame_0.txt\n";
 	dump("frame_0.txt", init.size(), curr);
+	cout << "E_coh = " << coh_energy(curr, n_x, n_y, n_z, cell_size_x, cell_size_y, cell_size_z) << endl;
 	int iterations_count;
 	cout << "iterations count: ";
 	cin >> iterations_count;
@@ -278,6 +346,7 @@ int main(int argc, char* argv[]) {
 		//dump iteration
 		cout << "frame_" << it_cnt + 1 << ".txt\n";
 		dump("frame_" + to_string(it_cnt + 1) + ".txt", init.size(), curr);
+		cout << "E_coh = " << coh_energy(curr, n_x, n_y, n_z, cell_size_x, cell_size_y, cell_size_z) << endl;
 		//swap
 		prev.swap(curr);
 		//count full energy and break
