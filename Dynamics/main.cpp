@@ -155,7 +155,8 @@ void dump(string filename, unsigned int size, vector <vector<Atom>> &contains) {
 	out << "one frame of relaxation\n";
 	for (unsigned int i = 0; i < contains.size(); ++i) {
 		for (unsigned int j = 0; j < contains[i].size(); ++j) {
-			out << setw(15) << contains[i][j].x << '\t' << setw(15) << contains[i][j].y << setw(15) << contains[i][j].z << '\n';
+			//out << setw(15) << contains[i][j].x << setw(15) << contains[i][j].y << setw(15) << contains[i][j].z << '\n';
+			out << contains[i][j].x << ' '  << contains[i][j].y << ' ' << contains[i][j].z << '\n';
 		}
 	}
 	out.close();
