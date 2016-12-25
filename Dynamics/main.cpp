@@ -20,6 +20,8 @@ const double r0 = 2.5562;
 
 const double D = 933;//eV
 const double a = 3.615 /1.44;
+const double lattice_constant = 3.615;
+const double andrew = 0.8018993929636421;
 class Atom {
 public:
 	double x = 0;
@@ -162,7 +164,7 @@ void dump(string filename, unsigned int size, vector <vector<Atom>> &contains) {
 	out.close();
 }
 
-double coh_energy(vector <vector<Atom>> &contains, int n_x, int n_y, int n_z, double cell_size_x, double cell_size_y, double cell_size_z) {
+double full_energy(vector <vector<Atom>> &contains, int n_x, int n_y, int n_z, double cell_size_x, double cell_size_y, double cell_size_z) {
 	
 	double E_coh = 0;
 	
@@ -232,6 +234,31 @@ double coh_energy(vector <vector<Atom>> &contains, int n_x, int n_y, int n_z, do
 	return E_coh;
 }
 
+void stretch(vector <vector<Atom>> &contains, int n_x, int n_y, int n_z, double cell_size_x, double cell_size_y, double cell_size_z, double alpha) {
+
+	double E_coh = 0;
+
+	for (int i = 0; i < n_x * n_y * n_z; ++i) {
+		for (Atom& particle : contains[i]) {
+			particle.x = particle.x + alpha * particle.x;
+			particle.y = particle.y + alpha * particle.y;
+			particle.z = particle.z + alpha * particle.z;
+		}
+	}
+}
+
+void elastic(vector <vector<Atom>> &contains, int n_x, int n_y, int n_z, double cell_size_x, double cell_size_y, double cell_size_z, double alpha) {
+
+	double E_coh = 0;
+
+	for (int i = 0; i < n_x * n_y * n_z; ++i) {
+		for (Atom& particle : contains[i]) {
+			particle.x = particle.x + alpha * particle.x;
+			particle.y = particle.y + alpha * particle.y;
+		}
+	}
+}
+
 int main(int argc, char* argv[]) {
 
 	vector<Atom> init;
@@ -256,6 +283,8 @@ int main(int argc, char* argv[]) {
 	double cell_size_x = 0;
 	double cell_size_y = 0;
 	double cell_size_z = 0;
+	int xy = 0;
+	int z = 0;
 	if (argc == 3) {
 			getline(fin, dumb);
 			fin >> cell_size_x;
@@ -263,8 +292,10 @@ int main(int argc, char* argv[]) {
 			fin >> cell_size_z;
 			//cell_size_z /= 2;
 			getline(fin, dumb);
-			getline(fin, dumb);
+			fin >> xy >> z;
 	}
+
+	int size = xy * z;
 
 	double max_x = 0;
 	double max_y = 0;
@@ -312,7 +343,7 @@ int main(int argc, char* argv[]) {
 		prev[z * n_y * n_x + y * n_x + x].push_back(tmp);
 		curr[z * n_y * n_x + y * n_x + x].push_back(tmp);
 	}
-	
+	/*
 	//calculate prev forces
 	calc(prev, n_x, n_y, n_z, cell_size_x, cell_size_y, cell_size_z);
 	//dump iteration
@@ -352,5 +383,39 @@ int main(int argc, char* argv[]) {
 		prev.swap(curr);
 		//count full energy and break
 	}
+	*/
+	double E_full = full_energy(prev, n_x, n_y, n_z, cell_size_x, cell_size_y, cell_size_z);
+	cout << "E_full = " << E_full << endl;
+	double E_coh = E_full / size;
+	cout << "E_coh = " << E_coh << endl;
+	double alpha = 0.01;
+	cout << "alpha = " << alpha << endl;
+	//B
+	stretch(curr, n_x, n_y, n_z, cell_size_x, cell_size_y, cell_size_z, alpha);
+	double E_full_stretched = full_energy(curr, n_x, n_y, n_z, cell_size_x * (1 + alpha), cell_size_y * (1 + alpha), cell_size_z * (1 + alpha));
+	cout << "E_full_stretched = " << E_full_stretched << endl;
+	curr = prev;
+
+	stretch(curr, n_x, n_y, n_z, cell_size_x, cell_size_y, cell_size_z, -alpha);
+	double E_full_compressed = full_energy(curr, n_x, n_y, n_z, cell_size_x * (1 - alpha), cell_size_y * (1 - alpha), cell_size_z * (1 - alpha));
+	cout << "E_full_compressed = " << E_full_compressed << endl;
+	curr = prev;
+
+	double V_0 = lattice_constant * lattice_constant * lattice_constant * size;
+	double B = (2 * (E_full_stretched - 2 * E_full + E_full_compressed) * andrew) / (9 * V_0 * alpha * alpha);
+	cout << "B = " << B << endl;
+	curr = prev;
+	//C11
+	elastic(curr, n_x, n_y, n_z, cell_size_x, cell_size_y, cell_size_z, alpha);
+	E_full_stretched = full_energy(curr, n_x, n_y, n_z, cell_size_x * (1 + alpha), cell_size_y * (1 + alpha), cell_size_z);
+	cout << "E_full_stretched = " << E_full_stretched << endl;
+	curr = prev;
+
+	elastic(curr, n_x, n_y, n_z, cell_size_x, cell_size_y, cell_size_z, -alpha);
+	E_full_compressed = full_energy(curr, n_x, n_y, n_z, cell_size_x * (1 - alpha), cell_size_y * (1 - alpha), cell_size_z);
+	cout << "E_full_compressed = " << E_full_compressed << endl;
+	curr = prev;
+
+
 	return 0;
 }
