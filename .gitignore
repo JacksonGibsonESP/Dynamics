@@ -210,3 +210,8 @@ FakesAssemblies/
 GeneratedArtifacts/
 _Pvt_Extensions/
 ModelManifest.xml
+/Dynamics/Dynamics.vcxproj
+/Dynamics/Dynamics.vcxproj.filters
+/Dynamics.sln
+/Dynamics.VC.db
+/Dynamics.VC.VC.opendb

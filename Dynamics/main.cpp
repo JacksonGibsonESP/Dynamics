@@ -8,6 +8,7 @@ using namespace std;
 //const int iterations_count = 10;
 //const double dt = 1e-3;
 /*
+//test commit
 //Cu
 const double lattice_constant = 3.615;
 const double cutoff = 1.7 * lattice_constant;
