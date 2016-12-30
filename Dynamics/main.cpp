@@ -144,8 +144,10 @@ void elastic_с12(vector <vector<Atom>> &contains, int n_x, int n_y, int n_z, do
 void elastic_с44(vector <vector<Atom>> &contains, int n_x, int n_y, int n_z, double alpha) {
 	for (int i = 0; i < n_x * n_y * n_z; ++i) {
 		for (Atom& particle : contains[i]) {
-			particle.x = particle.x + alpha * particle.y;
-			particle.y = alpha * particle.x + particle.y;
+			double tmp_x = particle.x + alpha * particle.y;
+			double tmp_y = alpha * particle.x + particle.y;
+			particle.x = tmp_x;
+			particle.y = tmp_y;
 			particle.z = particle.z / (1 - alpha * alpha);
 		}
 	}
@@ -270,7 +272,6 @@ int main(int argc, char* argv[]) {
 		alpha * bulk_size_x + bulk_size_y,
 		bulk_size_z / (1 - alpha * alpha));
 	curr = prev;
-	//cout << "E_full_stretched_C44 = " << E_full_stretched_C44 << endl;
 
 	elastic_с44(curr, n_x, n_y, n_z, -alpha);
 	double E_full_compressed_C44 = full_energy(curr, n_x, n_y, n_z,
@@ -278,9 +279,8 @@ int main(int argc, char* argv[]) {
 		-alpha * bulk_size_x + bulk_size_y,
 		bulk_size_z / (1 - alpha * alpha));
 	curr = prev;
-	//cout << "E_full_compressed_C44 = " << E_full_compressed_C44 << endl;
 
-	double C44 = (E_full_stretched_C44 - 2 * E_full + E_full_compressed_C44) * qsi / (alpha * alpha * 2 * V_0);
+	double C44 = ((E_full_stretched_C44 - 2 * E_full + E_full_compressed_C44)  * qsi) / (2 * V_0 * alpha * alpha);
 	cout << "C44 = " << C44 << endl;
 
 	return 0;
