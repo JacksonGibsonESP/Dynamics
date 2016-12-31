@@ -272,6 +272,7 @@ int main(int argc, char* argv[]) {
 		bulk_size_z / (1 - alpha * alpha));
 	curr = prev;
 
+
 	elastic_C44(curr, n_x, n_y, n_z, -alpha);
 	double E_full_compressed_C44 = full_energy(curr, n_x, n_y, n_z,
 		bulk_size_x - alpha * bulk_size_y,
