@@ -6,7 +6,6 @@
 using namespace std;
 
 /*
-//test commit
 //Cu
 const double lattice_constant = 3.615;
 const double cutoff = 1.7 * lattice_constant;
@@ -46,9 +45,12 @@ bool toofar(Atom part, Atom part2, double cutoff) {
 		+ (part2.z - part.z) * (part2.z - part.z)) > cutoff ? true : false;
 }
 
-double full_energy(vector <vector<Atom>> &contains, int n_x, int n_y, int n_z, double bulk_size_x, double bulk_size_y, double bulk_size_z) {
+double full_energy(vector <vector<Atom>> &contains, int n_x, int n_y, int n_z, double translation[9]) {
 
 	double E_coh = 0;
+	double bulk_size_x = translation[0] + translation[3] + translation[6];
+	double bulk_size_y = translation[1] + translation[4] + translation[7];
+	double bulk_size_z = translation[2] + translation[5] + translation[8];
 
 	for (int i = 0; i < n_x * n_y * n_z; ++i) {
 		for (Atom& particle : contains[i]) {
@@ -64,28 +66,40 @@ double full_energy(vector <vector<Atom>> &contains, int n_x, int n_y, int n_z, d
 								(atomcell_y + n_y + dy) % n_y * n_x +
 								(atomcell_z + n_z + dz) % n_z * n_y * n_x]) {
 							//check for translation
-							if (abs(particle2.x - particle.x) > bulk_size_x / 2) { //дальше одной клетки
-								if (particle2.x > particle.x) {
-									particle2.x -= bulk_size_x; //в соседнюю клетку справа перейдём
+							if (abs(particle2.x - particle.x) > bulk_size_x / 2) { //more than one cell far
+								if (particle2.x > particle.x) { //move to neighbor cell
+									particle2.x -= translation[0];
+									particle2.y -= translation[1];
+									particle2.z -= translation[2];
 								}
 								else {
-									particle2.x += bulk_size_x; //в соседнюю клетку слева перейдём
+									particle2.x += translation[0];
+									particle2.y += translation[1];
+									particle2.z += translation[2];
 								}
 							}
-							if (abs(particle2.y - particle.y) > bulk_size_y / 2) { //дальше одной клетки
-								if (particle2.y > particle.y) {
-									particle2.y -= bulk_size_y; //в соседнюю клетку справа перейдём
+							if (abs(particle2.y - particle.y) > bulk_size_y / 2) { //more than one cell far
+								if (particle2.y > particle.y) { //move to neighbor cell
+									particle2.x -= translation[3];
+									particle2.y -= translation[4];
+									particle2.z -= translation[5];
 								}
 								else {
-									particle2.y += bulk_size_y; //в соседнюю клетку слева перейдём
+									particle2.x += translation[3];
+									particle2.y += translation[4];
+									particle2.z += translation[5];
 								}
 							}
-							if (abs(particle2.z - particle.z) > bulk_size_z / 2) { //дальше одной клетки
-								if (particle2.z > particle.z) {
-									particle2.z -= bulk_size_z; //в соседнюю клетку справа перейдём
+							if (abs(particle2.z - particle.z) > bulk_size_z / 2) { //more than one cell far
+								if (particle2.z > particle.z) { //move to neighbor cell
+									particle2.x -= translation[6];
+									particle2.y -= translation[7];
+									particle2.z -= translation[8];
 								}
 								else {
-									particle2.z += bulk_size_z; //в соседнюю клетку слева перейдём
+									particle2.x += translation[6];
+									particle2.y += translation[7];
+									particle2.z += translation[8];
 								}
 							}
 							if (toofar(particle, particle2, cutoff)) {
@@ -151,6 +165,18 @@ void elastic_C44(vector <vector<Atom>> &contains, int n_x, int n_y, int n_z, dou
 			particle.z = particle.z / (1 - alpha * alpha);
 		}
 	}
+}
+
+void dump(string filename, int size, vector <vector<Atom>> &contains) {
+	ofstream out(filename);
+	out << size << '\n';
+	out << "one frame\n";
+	for (unsigned int i = 0; i < contains.size(); ++i) {
+		for (unsigned int j = 0; j < contains[i].size(); ++j) {
+			out << contains[i][j].x << ' ' << contains[i][j].y << ' ' << contains[i][j].z << '\n';
+		}
+	}
+	out.close();
 }
 
 int main(int argc, char* argv[]) {
@@ -220,42 +246,129 @@ int main(int argc, char* argv[]) {
 		curr[z * n_y * n_x + y * n_x + x].push_back(tmp);
 	}
 	
-	double E_full = full_energy(prev, n_x, n_y, n_z, bulk_size_x, bulk_size_y, bulk_size_z);
+	double translation_vector[9];
+	//x
+	translation_vector[0] = bulk_size_x;
+	translation_vector[1] = 0;
+	translation_vector[2] = 0;
+	//y
+	translation_vector[3] = 0;
+	translation_vector[4] = bulk_size_y;
+	translation_vector[5] = 0;
+	//z
+	translation_vector[6] = 0;
+	translation_vector[7] = 0;
+	translation_vector[8] = bulk_size_z;
+
+	double E_full = full_energy(prev, n_x, n_y, n_z, translation_vector);
 	cout << "E_full = " << E_full << endl;
 	double E_coh = E_full / size;
 	cout << "E_coh = " << E_coh << endl;
 	cout << "alpha = ";
 	double alpha;
 	cin >> alpha;
-	
-	//B
+
+	double V_0 = lattice_constant * lattice_constant * lattice_constant * n_x * n_y * n_z;
+
+	//B////////////////////////////////////////////////////////////////////////////////////
 	stretch(curr, n_x, n_y, n_z, alpha);
-	double E_full_stretched = full_energy(curr, n_x, n_y, n_z, bulk_size_x * (1 + alpha), bulk_size_y * (1 + alpha), bulk_size_z * (1 + alpha));
+	//x
+	translation_vector[0] = bulk_size_x * (1 + alpha);
+	translation_vector[1] = 0;
+	translation_vector[2] = 0;
+	//y
+	translation_vector[3] = 0;
+	translation_vector[4] = bulk_size_y * (1 + alpha);
+	translation_vector[5] = 0;
+	//z
+	translation_vector[6] = 0;
+	translation_vector[7] = 0;
+	translation_vector[8] = bulk_size_z * (1 + alpha);
+	double E_full_stretched = full_energy(curr, n_x, n_y, n_z, translation_vector);
 	curr = prev;
 
 	stretch(curr, n_x, n_y, n_z, -alpha);
-	double E_full_compressed = full_energy(curr, n_x, n_y, n_z, bulk_size_x * (1 - alpha), bulk_size_y * (1 - alpha), bulk_size_z * (1 - alpha));
+	//x
+	translation_vector[0] = bulk_size_x * (1 - alpha);
+	translation_vector[1] = 0;
+	translation_vector[2] = 0;
+	//y
+	translation_vector[3] = 0;
+	translation_vector[4] = bulk_size_y * (1 - alpha);
+	translation_vector[5] = 0;
+	//z
+	translation_vector[6] = 0;
+	translation_vector[7] = 0;
+	translation_vector[8] = bulk_size_z * (1 - alpha);
+	double E_full_compressed = full_energy(curr, n_x, n_y, n_z, translation_vector);
 	curr = prev;
 
-	double V_0 = lattice_constant * lattice_constant * lattice_constant * n_x * n_y * n_z;
 	double B = (2 * (E_full_stretched - 2 * E_full + E_full_compressed) * qsi) / (9 * V_0 * alpha * alpha);
 	cout << "B = " << B << endl;
 
-	//C11 C12
+	//C11 C12//////////////////////////////////////////////////////////////////////////////
 	elastic_C11(curr, n_x, n_y, n_z, alpha);
-	double E_full_stretched_C11 = full_energy(curr, n_x, n_y, n_z, bulk_size_x * (1 + alpha), bulk_size_y * (1 + alpha), bulk_size_z);
+	//x
+	translation_vector[0] = bulk_size_x * (1 + alpha);
+	translation_vector[1] = 0;
+	translation_vector[2] = 0;
+	//y
+	translation_vector[3] = 0;
+	translation_vector[4] = bulk_size_y * (1 + alpha);
+	translation_vector[5] = 0;
+	//z
+	translation_vector[6] = 0;
+	translation_vector[7] = 0;
+	translation_vector[8] = bulk_size_z;
+	double E_full_stretched_C11 = full_energy(curr, n_x, n_y, n_z, translation_vector);
 	curr = prev;
 
 	elastic_C11(curr, n_x, n_y, n_z, -alpha);
-	double E_full_compressed_C11 = full_energy(curr, n_x, n_y, n_z, bulk_size_x * (1 - alpha), bulk_size_y * (1 - alpha), bulk_size_z);
+	//x
+	translation_vector[0] = bulk_size_x * (1 - alpha);
+	translation_vector[1] = 0;
+	translation_vector[2] = 0;
+	//y
+	translation_vector[3] = 0;
+	translation_vector[4] = bulk_size_y * (1 - alpha);
+	translation_vector[5] = 0;
+	//z
+	translation_vector[6] = 0;
+	translation_vector[7] = 0;
+	translation_vector[8] = bulk_size_z;
+	double E_full_compressed_C11 = full_energy(curr, n_x, n_y, n_z, translation_vector);
 	curr = prev;
 
 	elastic_C12(curr, n_x, n_y, n_z, alpha);
-	double E_full_stretched_C12 = full_energy(curr, n_x, n_y, n_z, bulk_size_x * (1 + alpha), bulk_size_y * (1 - alpha), bulk_size_z);
+	//x
+	translation_vector[0] = bulk_size_x * (1 + alpha);
+	translation_vector[1] = 0;
+	translation_vector[2] = 0;
+	//y
+	translation_vector[3] = 0;
+	translation_vector[4] = bulk_size_y * (1 - alpha);
+	translation_vector[5] = 0;
+	//z
+	translation_vector[6] = 0;
+	translation_vector[7] = 0;
+	translation_vector[8] = bulk_size_z;
+	double E_full_stretched_C12 = full_energy(curr, n_x, n_y, n_z, translation_vector);
 	curr = prev;
 
 	elastic_C12(curr, n_x, n_y, n_z, -alpha);
-	double E_full_compressed_C12 = full_energy(curr, n_x, n_y, n_z, bulk_size_x * (1 - alpha), bulk_size_y * (1 + alpha), bulk_size_z);
+	//x
+	translation_vector[0] = bulk_size_x * (1 - alpha);
+	translation_vector[1] = 0;
+	translation_vector[2] = 0;
+	//y
+	translation_vector[3] = 0;
+	translation_vector[4] = bulk_size_y * (1 + alpha);
+	translation_vector[5] = 0;
+	//z
+	translation_vector[6] = 0;
+	translation_vector[7] = 0;
+	translation_vector[8] = bulk_size_z;
+	double E_full_compressed_C12 = full_energy(curr, n_x, n_y, n_z, translation_vector);
 	curr = prev;
 
 	double C11 = ((E_full_stretched_C11 - 2 * E_full + E_full_compressed_C11) / (alpha * alpha) + (E_full_stretched_C12 - 2 * E_full + E_full_compressed_C12) / (alpha * alpha)) * qsi / (2 * V_0);
@@ -263,21 +376,40 @@ int main(int argc, char* argv[]) {
 
 	double C12 = ((E_full_stretched_C11 - 2 * E_full + E_full_compressed_C11) / (alpha * alpha) - (E_full_stretched_C12 - 2 * E_full + E_full_compressed_C12) / (alpha * alpha)) * qsi / (2 * V_0);
 	cout << "C12 = " << C12 << endl;
-
-	//C44
+	
+	//C44//////////////////////////////////////////////////////////////////////////////////
 	elastic_C44(curr, n_x, n_y, n_z, alpha);
-	double E_full_stretched_C44 = full_energy(curr, n_x, n_y, n_z,
-		bulk_size_x + alpha * bulk_size_y,
-		alpha * bulk_size_x + bulk_size_y,
-		bulk_size_z / (1 - alpha * alpha));
+	//x
+	translation_vector[0] = bulk_size_x;
+	translation_vector[1] = alpha * bulk_size_x;
+	translation_vector[2] = 0;
+	//y
+	translation_vector[3] = alpha * bulk_size_y;
+	translation_vector[4] = bulk_size_y;
+	translation_vector[5] = 0;
+	//z
+	translation_vector[6] = 0;
+	translation_vector[7] = 0;
+	translation_vector[8] = bulk_size_z / (1 - alpha * alpha);
+
+	double E_full_stretched_C44 = full_energy(curr, n_x, n_y, n_z, translation_vector);
 	curr = prev;
 
-
 	elastic_C44(curr, n_x, n_y, n_z, -alpha);
-	double E_full_compressed_C44 = full_energy(curr, n_x, n_y, n_z,
-		bulk_size_x - alpha * bulk_size_y,
-		-alpha * bulk_size_x + bulk_size_y,
-		bulk_size_z / (1 - alpha * alpha));
+	//x
+	translation_vector[0] = bulk_size_x;
+	translation_vector[1] = -alpha * bulk_size_x;
+	translation_vector[2] = 0;
+	//y
+	translation_vector[3] = -alpha * bulk_size_y;
+	translation_vector[4] = bulk_size_y;
+	translation_vector[5] = 0;
+	//z
+	translation_vector[6] = 0;
+	translation_vector[7] = 0;
+	translation_vector[8] = bulk_size_z / (1 - alpha * alpha);
+
+	double E_full_compressed_C44 = full_energy(curr, n_x, n_y, n_z,	translation_vector);
 	curr = prev;
 
 	double C44 = ((E_full_stretched_C44 - 2 * E_full + E_full_compressed_C44)  * qsi) / (2 * V_0 * alpha * alpha);
