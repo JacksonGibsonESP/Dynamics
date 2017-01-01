@@ -329,6 +329,14 @@ int main(int argc, char* argv[]) {
 	vector <vector<Atom>> imp;
 	convert(argv[2], n_x, n_y, n_z, lattice_constant, imp);
 
+	//with dimer
+	vector <vector<Atom>> dim;
+	convert(argv[3], n_x, n_y, n_z, lattice_constant, dim);
+
+	//with adatom
+	vector <vector<Atom>> adatom;
+	convert(argv[4], n_x, n_y, n_z, lattice_constant, adatom);
+
 	RGL potentials[3];
 
 	//A-A Cu
@@ -432,7 +440,7 @@ int main(int argc, char* argv[]) {
 	double C44 = ((E_full_stretched_C44 - 2 * E_full + E_full_compressed_C44)  * qsi) / (2 * V_0 * alpha * alpha);
 	cout << "C44 = " << C44 << endl;
 
-	//E_sol
+	//E_sol////////////////////////////////////////////////////////////////////////////////
 	tr.make_it_pure();
 	double E_AB = full_energy(imp, n_x, n_y, n_z, cutoff, potentials, tr.translation, false);
 	double E_B = full_energy(curr, n_x, n_y, n_z, cutoff, potentials, tr.translation, false);
@@ -440,6 +448,12 @@ int main(int argc, char* argv[]) {
 	double E_sol = E_AB - E_B + 4.386 + E_coh;
 	cout << "E_sol = " << E_sol << endl;
 
+	//E_in_dim/////////////////////////////////////////////////////////////////////////////
+	double E_dim_surf = full_energy(dim, n_x, n_y, n_z, cutoff, potentials, tr.translation, true);
+	double E_surf = full_energy(curr, n_x, n_y, n_z, cutoff, potentials, tr.translation, true);
+	double E_adatom_surf = full_energy(adatom, n_x, n_y, n_z, cutoff, potentials, tr.translation, true);
+	double E_in_dim = (E_dim_surf - E_surf) - 2 * (E_adatom_surf - E_surf);
+	cout << "E_in_dim = " << E_in_dim << endl;
 
 	return 0;
 }
