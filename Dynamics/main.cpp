@@ -329,13 +329,25 @@ int main(int argc, char* argv[]) {
 	vector <vector<Atom>> imp;
 	convert(argv[2], n_x, n_y, n_z, lattice_constant, imp);
 
-	//with dimer
+	//with dimer in surf
 	vector <vector<Atom>> dim;
 	convert(argv[3], n_x, n_y, n_z, lattice_constant, dim);
 
-	//with adatom
+	//with adatom in surf
 	vector <vector<Atom>> adatom;
 	convert(argv[4], n_x, n_y, n_z, lattice_constant, adatom);
+
+	//with dimer on surf
+	vector <vector<Atom>> dim_on_surf;
+	convert(argv[5], n_x, n_y, n_z, lattice_constant, dim_on_surf);
+
+	//with adatom on surf
+	vector <vector<Atom>> adatom_on_surf;
+	convert(argv[6], n_x, n_y, n_z, lattice_constant, adatom_on_surf);
+
+	//surf for e dim on surf
+	vector <vector<Atom>> surf2;
+	convert(argv[6], n_x, n_y, n_z, lattice_constant, surf2);
 
 	RGL potentials[3];
 
@@ -454,6 +466,13 @@ int main(int argc, char* argv[]) {
 	double E_adatom_surf = full_energy(adatom, n_x, n_y, n_z, cutoff, potentials, tr.translation, true);
 	double E_in_dim = (E_dim_surf - E_surf) - 2 * (E_adatom_surf - E_surf);
 	cout << "E_in_dim = " << E_in_dim << endl;
+
+	//E_on_dim/////////////////////////////////////////////////////////////////////////////
+	double E_dim_surf2 = full_energy(dim_on_surf, n_x, n_y, n_z, cutoff, potentials, tr.translation, true);
+	double E_surf2 = full_energy(surf2, n_x, n_y, n_z, cutoff, potentials, tr.translation, true);
+	double E_adatom_surf2 = full_energy(adatom_on_surf, n_x, n_y, n_z, cutoff, potentials, tr.translation, true);
+	double E_on_dim = (E_dim_surf2 - E_surf2) - 2 * (E_adatom_surf2 - E_surf2);
+	cout << "E_on_dim = " << E_on_dim << endl;
 
 	return 0;
 }
