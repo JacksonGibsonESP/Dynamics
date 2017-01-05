@@ -588,6 +588,10 @@ int main(int argc, char* argv[]) {
 	cout << "  Number of iterations = " << icount << "\n";
 	cout << "  Number of restarts =   " << numres << "\n";
 	
+	if (ifault != 0) {
+		return 0;
+	}
+
 	potentials[0].A_1 = xmin[0];
 	potentials[0].A_0 = xmin[1];
 	potentials[0].s = xmin[2];
@@ -650,6 +654,10 @@ int main(int argc, char* argv[]) {
 	cout << "\n";
 	cout << "  Number of iterations = " << icount << "\n";
 	cout << "  Number of restarts =   " << numres << "\n";
+
+	if (ifault != 0) {
+		return 0;
+	}
 
 	potentials[1].A_1 = xmin[0];
 	potentials[1].A_0 = xmin[1];
@@ -714,6 +722,10 @@ int main(int argc, char* argv[]) {
 	cout << "  Number of iterations = " << icount << "\n";
 	cout << "  Number of restarts =   " << numres << "\n";
 
+	if (ifault != 0) {
+		return 0;
+	}
+
 	potentials[2].A_1 = xmin[0];
 	potentials[2].A_0 = xmin[1];
 	potentials[2].s = xmin[2];
@@ -724,5 +736,30 @@ int main(int argc, char* argv[]) {
 	delete[] start;
 	delete[] step;
 	delete[] xmin;
+
+	cout << "\nA-A potential:\n" <<
+		"A1 = " << potentials[0].A_1 << '\n' <<
+		"A0 = " << potentials[0].A_0 << '\n' <<
+		"s = " << potentials[0].s << '\n' <<
+		"p = " << potentials[0].p << '\n' <<
+		"q = " << potentials[0].q << '\n' <<
+		"r0 = " << potentials[0].r0 << '\n';
+
+	cout << "\nA-B potential:\n" <<
+		"A1 = " << potentials[1].A_1 << '\n' <<
+		"A0 = " << potentials[1].A_0 << '\n' <<
+		"s = " << potentials[1].s << '\n' <<
+		"p = " << potentials[1].p << '\n' <<
+		"q = " << potentials[1].q << '\n' <<
+		"r0 = " << potentials[1].r0 << '\n';
+
+	cout << "\nB-B potential:\n" <<
+		"A1 = " << potentials[2].A_1 << '\n' <<
+		"A0 = " << potentials[2].A_0 << '\n' <<
+		"s = " << potentials[2].s << '\n' <<
+		"p = " << potentials[2].p << '\n' <<
+		"q = " << potentials[2].q << '\n' <<
+		"r0 = " << potentials[2].r0 << '\n';
+
 	return 0;
 }
