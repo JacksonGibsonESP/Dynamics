@@ -2,25 +2,9 @@
 #include <fstream>
 #include <vector>
 #include <string>
+#include <iomanip>
+#include "asa047.hpp"
 using namespace std;
-
-//Cu
-/*const double A_1 = 0;
-const double A_0 = 0.0855;
-const double s = 1.2240;
-const double p = 10.96;
-const double q = 2.278;
-const double r0 = lattice_constant / sqrt(2);*/
-
-//Ag
-/*const double lattice_constant = 4.085;
-const double cutoff = 1.7 * lattice_constant;
-const double A_1 = 0;
-const double A_0 = 0.1028;
-const double s = 1.178;
-const double p = 10.928;
-const double q = 3.139;
-const double r0 = lattice_constant / sqrt(2);*/
 
 class Atom {
 public:
@@ -47,7 +31,7 @@ public:
 	double translation[9];
 	double lattice_constant = 0;
 	double alpha = 0;
-	void make_it_pure(){
+	void make_it_pure() {
 		//x
 		translation[0] = 3 * lattice_constant;
 		translation[1] = 0;
@@ -118,6 +102,52 @@ public:
 		translation[8] = 3 * lattice_constant / (1 - alpha * alpha);
 	}
 };
+
+//without impurities
+vector <vector<Atom>> bulk;
+//with one impurity for E_sol
+vector <vector<Atom>> imp;
+//with dimer in surf
+vector <vector<Atom>> dim;
+//with adatom in surf
+vector <vector<Atom>> adatom;
+//with dimer on surf
+vector <vector<Atom>> dim_on_surf;
+//with adatom on surf
+vector <vector<Atom>> adatom_on_surf;
+//surf energy
+vector <vector<Atom>> surf;
+
+Translation tr;
+int n_x, n_y, n_z;
+double alpha = 0.01;
+double lattice_constant;
+double cutoff;
+RGL potentials[3];
+double V_0;
+double E_full;
+double qsi = 0.8018993929636421;
+int atom_count;
+double E_coh;
+double B;
+double C11;
+double C12;
+double C44;
+double E_sol;
+double E_in_dim;
+double E_on_dim;
+
+//reference values
+double E_coh_r;
+double B_r;
+double C11_r;
+double C12_r;
+double C44_r;
+double E_sol_r;
+double E_in_dim_r;
+double E_on_dim_r;
+
+double E_coh_imp;
 
 bool toofar(Atom part, Atom part2, double cutoff) {
 	if (part.x == part2.x && part.y == part2.y && part.z == part2.z)
@@ -309,170 +339,390 @@ int convert(string filename, int n_x, int n_y, int n_z, double lattice_constant,
 	return size;
 }
 
-int main(int argc, char* argv[]) {
-
-	//cell size
-	int n_x = 3;
-	int n_y = 3;
-	int n_z = 3;
-
-	const double lattice_constant = 3.615;
-	const double cutoff = 1.7 * lattice_constant;
-	const double qsi = 0.8018993929636421;
-
-	//without impurities
-	vector <vector<Atom>> curr;
-	int size = convert(argv[1], n_x, n_y, n_z, lattice_constant, curr);
-	vector <vector<Atom>> prev = curr;
-
-	//with one impurity for E_sol
-	vector <vector<Atom>> imp;
-	convert(argv[2], n_x, n_y, n_z, lattice_constant, imp);
-
-	//with dimer in surf
-	vector <vector<Atom>> dim;
-	convert(argv[3], n_x, n_y, n_z, lattice_constant, dim);
-
-	//with adatom in surf
-	vector <vector<Atom>> adatom;
-	convert(argv[4], n_x, n_y, n_z, lattice_constant, adatom);
-
-	//with dimer on surf
-	vector <vector<Atom>> dim_on_surf;
-	convert(argv[5], n_x, n_y, n_z, lattice_constant, dim_on_surf);
-
-	//with adatom on surf
-	vector <vector<Atom>> adatom_on_surf;
-	convert(argv[6], n_x, n_y, n_z, lattice_constant, adatom_on_surf);
-
-	//surf for e dim on surf
-	vector <vector<Atom>> surf2;
-	convert(argv[6], n_x, n_y, n_z, lattice_constant, surf2);
-
-	RGL potentials[3];
-
-	//A-A Cu
-	potentials[0].A_1 = 0;
-	potentials[0].A_0 = 0.0854;
-	potentials[0].s = 1.2243;
-	potentials[0].p = 10.939;
-	potentials[0].q = 2.2799;
-	potentials[0].r0 = 2.5563;
-
-	//impurity
-	//A-B Co-Cu
-	potentials[1].A_1 = -0.7922;
-	potentials[1].A_0 = -0.0487;
-	potentials[1].s = 0.7356;
-	potentials[1].p = 8.1825;
-	potentials[1].q = 3.344;
-	potentials[1].r0 = 2.4049;
-	
-	//B-B Co
-	potentials[2].A_1 = -0.3583;
-	potentials[2].A_0 = 0.1385;
-	potentials[2].s = 1.5247;
-	potentials[2].p = 7.6788;
-	potentials[2].q = 2.139;
-	potentials[2].r0 = 2.378;
-
-	Translation tr;
-	tr.lattice_constant = lattice_constant;
+void calc_E_coh() {
 	tr.make_it_pure();
+	E_full = full_energy(bulk, n_x, n_y, n_z, cutoff, potentials, tr.translation, false);
+	E_coh = E_full / atom_count;
+}
 
-	double E_full = full_energy(prev, n_x, n_y, n_z, cutoff, potentials, tr.translation, false);
-	cout << "E_full = " << E_full << endl;
-	double E_coh = E_full / size;
-	cout << "E_coh = " << E_coh << endl;
-	cout << "alpha = ";
-	double alpha;
-	cin >> alpha;
-	double V_0 = lattice_constant * lattice_constant * lattice_constant * n_x * n_y * n_z;
-
-	//B////////////////////////////////////////////////////////////////////////////////////
+void calc_B() {
+	vector <vector<Atom>> curr = bulk;
 	stretch(curr, n_x, n_y, n_z, alpha);
 	tr.alpha = alpha;
 	tr.make_it_B();
 	double E_full_stretched = full_energy(curr, n_x, n_y, n_z, cutoff, potentials, tr.translation, false);
-	curr = prev;
+	curr = bulk;
 
 	stretch(curr, n_x, n_y, n_z, -alpha);
 	tr.alpha = -alpha;
 	tr.make_it_B();
 	double E_full_compressed = full_energy(curr, n_x, n_y, n_z, cutoff, potentials, tr.translation, false);
-	curr = prev;
+	curr = bulk;
+	B = (2 * (E_full_stretched - 2 * E_full + E_full_compressed) * qsi) / (9 * V_0 * alpha * alpha);
+}
 
-	double B = (2 * (E_full_stretched - 2 * E_full + E_full_compressed) * qsi) / (9 * V_0 * alpha * alpha);
-	cout << "B = " << B << endl;
-
-	//C11 C12//////////////////////////////////////////////////////////////////////////////
+void calc_C11_C12() {
+	vector <vector<Atom>> curr = bulk;
 	elastic_C11(curr, n_x, n_y, n_z, alpha);
 	tr.alpha = alpha;
 	tr.make_it_C11();
 	double E_full_stretched_C11 = full_energy(curr, n_x, n_y, n_z, cutoff, potentials, tr.translation, false);
-	curr = prev;
+	curr = bulk;
 
 	elastic_C11(curr, n_x, n_y, n_z, -alpha);
 	tr.alpha = -alpha;
 	tr.make_it_C11();
 	double E_full_compressed_C11 = full_energy(curr, n_x, n_y, n_z, cutoff, potentials, tr.translation, false);
-	curr = prev;
+	curr = bulk;
 
 	elastic_C12(curr, n_x, n_y, n_z, alpha);
 	tr.alpha = alpha;
 	tr.make_it_C12();
 	double E_full_stretched_C12 = full_energy(curr, n_x, n_y, n_z, cutoff, potentials, tr.translation, false);
-	curr = prev;
+	curr = bulk;
 
 	elastic_C12(curr, n_x, n_y, n_z, -alpha);
 	tr.alpha = -alpha;
 	tr.make_it_C12();
 	double E_full_compressed_C12 = full_energy(curr, n_x, n_y, n_z, cutoff, potentials, tr.translation, false);
-	curr = prev;
+	curr = bulk;
 
-	double C11 = ((E_full_stretched_C11 - 2 * E_full + E_full_compressed_C11) / (alpha * alpha) + (E_full_stretched_C12 - 2 * E_full + E_full_compressed_C12) / (alpha * alpha)) * qsi / (2 * V_0);
-	cout << "C11 = " << C11 << endl;
+	C11 = ((E_full_stretched_C11 - 2 * E_full + E_full_compressed_C11) / (alpha * alpha) + (E_full_stretched_C12 - 2 * E_full + E_full_compressed_C12) / (alpha * alpha)) * qsi / (2 * V_0);
 
-	double C12 = ((E_full_stretched_C11 - 2 * E_full + E_full_compressed_C11) / (alpha * alpha) - (E_full_stretched_C12 - 2 * E_full + E_full_compressed_C12) / (alpha * alpha)) * qsi / (2 * V_0);
-	cout << "C12 = " << C12 << endl;
-	
-	//C44//////////////////////////////////////////////////////////////////////////////////
+	C12 = ((E_full_stretched_C11 - 2 * E_full + E_full_compressed_C11) / (alpha * alpha) - (E_full_stretched_C12 - 2 * E_full + E_full_compressed_C12) / (alpha * alpha)) * qsi / (2 * V_0);
+}
+
+void calc_C44() {
+	vector <vector<Atom>> curr = bulk;
 	elastic_C44(curr, n_x, n_y, n_z, alpha);
 	tr.alpha = alpha;
 	tr.make_it_C44();
 	double E_full_stretched_C44 = full_energy(curr, n_x, n_y, n_z, cutoff, potentials, tr.translation, false);
-	curr = prev;
+	curr = bulk;
 
 	elastic_C44(curr, n_x, n_y, n_z, -alpha);
 	tr.alpha = -alpha;
 	tr.make_it_C44();
 	double E_full_compressed_C44 = full_energy(curr, n_x, n_y, n_z, cutoff, potentials, tr.translation, false);
-	curr = prev;
+	curr = bulk;
 
-	double C44 = ((E_full_stretched_C44 - 2 * E_full + E_full_compressed_C44)  * qsi) / (2 * V_0 * alpha * alpha);
-	cout << "C44 = " << C44 << endl;
+	C44 = ((E_full_stretched_C44 - 2 * E_full + E_full_compressed_C44)  * qsi) / (2 * V_0 * alpha * alpha);
+}
 
-	//E_sol////////////////////////////////////////////////////////////////////////////////
+void calc_E_sol() {
 	tr.make_it_pure();
 	double E_AB = full_energy(imp, n_x, n_y, n_z, cutoff, potentials, tr.translation, false);
-	double E_B = full_energy(curr, n_x, n_y, n_z, cutoff, potentials, tr.translation, false);
-	//E_coh of Co = -4.386
-	double E_sol = E_AB - E_B + 4.386 + E_coh;
-	cout << "E_sol = " << E_sol << endl;
+	double E_B = full_energy(bulk, n_x, n_y, n_z, cutoff, potentials, tr.translation, false);
+	E_sol = E_AB - E_B - E_coh_imp + E_coh;
+}
 
-	//E_in_dim/////////////////////////////////////////////////////////////////////////////
+void calc_E_in_dim() {
 	double E_dim_surf = full_energy(dim, n_x, n_y, n_z, cutoff, potentials, tr.translation, true);
-	double E_surf = full_energy(curr, n_x, n_y, n_z, cutoff, potentials, tr.translation, true);
+	double E_surf = full_energy(bulk, n_x, n_y, n_z, cutoff, potentials, tr.translation, true);
 	double E_adatom_surf = full_energy(adatom, n_x, n_y, n_z, cutoff, potentials, tr.translation, true);
-	double E_in_dim = (E_dim_surf - E_surf) - 2 * (E_adatom_surf - E_surf);
-	cout << "E_in_dim = " << E_in_dim << endl;
+	E_in_dim = (E_dim_surf - E_surf) - 2 * (E_adatom_surf - E_surf);
+}
 
-	//E_on_dim/////////////////////////////////////////////////////////////////////////////
+void calc_E_on_dim() {
 	double E_dim_surf2 = full_energy(dim_on_surf, n_x, n_y, n_z, cutoff, potentials, tr.translation, true);
-	double E_surf2 = full_energy(surf2, n_x, n_y, n_z, cutoff, potentials, tr.translation, true);
+	double E_surf2 = full_energy(surf, n_x, n_y, n_z, cutoff, potentials, tr.translation, true);
 	double E_adatom_surf2 = full_energy(adatom_on_surf, n_x, n_y, n_z, cutoff, potentials, tr.translation, true);
-	double E_on_dim = (E_dim_surf2 - E_surf2) - 2 * (E_adatom_surf2 - E_surf2);
-	cout << "E_on_dim = " << E_on_dim << endl;
+	E_on_dim = (E_dim_surf2 - E_surf2) - 2 * (E_adatom_surf2 - E_surf2);
+}
 
+double fitting_AA(double x[6]) {
+	potentials[0].A_1 = x[0];
+	potentials[0].A_0 = x[1];
+	potentials[0].s = x[2];
+	potentials[0].p = x[3];
+	potentials[0].q = x[4];
+	potentials[0].r0 = x[5];
+	calc_E_coh();
+	calc_B();
+	calc_C11_C12();
+	calc_C44();
+	cout << E_coh << " " << B << " " << C11 << " " << C12 << " " << C44 << '\n';
+	return sqrt(((E_coh_r - E_coh) * (E_coh_r - E_coh) / E_coh_r * E_coh_r +
+		(B_r - B) * (B_r - B) / B_r * B_r +
+		(C11_r - C11) * (C11_r - C11) / C11_r * C11_r +
+		(C12_r - C12) * (C12_r - C12) / C12_r * C12_r +
+		(C44_r - C44) * (C44_r - C44) / C44_r * C44_r) / 5.0);
+}
+
+double fitting_AB(double x[6]) {
+	potentials[1].A_1 = x[0];
+	potentials[1].A_0 = x[1];
+	potentials[1].s = x[2];
+	potentials[1].p = x[3];
+	potentials[1].q = x[4];
+	potentials[1].r0 = x[5];
+	calc_E_sol();
+	cout << E_sol << "\n";
+	return sqrt((E_sol_r - E_sol) * (E_sol_r - E_sol) / E_sol_r * E_sol_r);
+}
+
+double fitting_BB(double x[6]) {
+		potentials[2].A_1 = x[0];
+		potentials[2].A_0 = x[1];
+		potentials[2].s = x[2];
+		potentials[2].p = x[3];
+		potentials[2].q = x[4];
+		potentials[2].r0 = x[5];
+		calc_E_in_dim();
+		calc_E_on_dim();
+		cout << E_in_dim << " " << E_on_dim << '\n';
+		return sqrt(((E_in_dim_r - E_in_dim) * (E_in_dim_r - E_in_dim) / E_in_dim_r * E_in_dim_r +
+			(E_on_dim_r - E_on_dim) * (E_on_dim_r - E_on_dim) / E_on_dim_r * E_on_dim_r) / 2.0);
+	}
+
+int main(int argc, char* argv[]) {
+
+	if (argc != 8) {
+		cout << "Insufficient number of arguments\n";
+		return 0;
+	}
+
+	//cell size
+	n_x = 3;
+	n_y = 3;
+	n_z = 3;
+
+	lattice_constant = 4.085;
+	cutoff = 1.7 * lattice_constant;
+
+
+	atom_count = convert(argv[1], n_x, n_y, n_z, lattice_constant, bulk);
+	convert(argv[2], n_x, n_y, n_z, lattice_constant, imp);
+	convert(argv[3], n_x, n_y, n_z, lattice_constant, dim);
+	convert(argv[4], n_x, n_y, n_z, lattice_constant, adatom);
+	convert(argv[5], n_x, n_y, n_z, lattice_constant, dim_on_surf);
+	convert(argv[6], n_x, n_y, n_z, lattice_constant, adatom_on_surf);
+	convert(argv[7], n_x, n_y, n_z, lattice_constant, surf);
+
+	//Ag-Ni
+	E_coh_r = -2.960;
+	B_r = 1.08;
+	C11_r = 1.32;
+	C12_r = 0.97;
+	C44_r = 0.51;
+	E_sol_r = 0.539;
+	E_in_dim_r = 0.06;
+	E_on_dim_r = -0.56;
+	E_coh_imp = -4.435;
+
+	tr.lattice_constant = lattice_constant;
+	tr.alpha = alpha;
+	V_0 = lattice_constant * lattice_constant * lattice_constant * n_x * n_y * n_z;
+
+	int icount;
+	int ifault;
+	int kcount;
+	int konvge;
+	int n;
+	int numres;
+	double reqmin;
+	double *start;
+	double *step;
+	double *xmin;
+	double ynewlo;
+
+	n = 6;
+
+	start = new double[n];
+	step = new double[n];
+	xmin = new double[n];
+	///////////////////////////////////////////////////////
+	cout << "\n";
+	cout << "AA fitting:\n";
+	cout << "\n";
+
+	start[0] = 0;
+	start[1] = 0.1028;
+	start[2] = 1.178;
+	start[3] = 10.928;
+	start[4] = 3.139;
+	start[5] = lattice_constant / sqrt(2);
+
+	reqmin = 1.0E-08;
+
+	step[0] = 1.0;
+	step[1] = 1.0;
+	step[2] = 1.0;
+	step[3] = 1.0;
+	step[4] = 1.0;
+	step[5] = 1.0;
+
+	konvge = 10;
+	kcount = 500;
+
+	cout << "\n";
+	cout << "  Starting point X:\n";
+	cout << "\n";
+	for (int i = 0; i < n; i++)
+	{
+		cout << "  " << setw(14) << start[i] << "\n";
+	}
+
+	ynewlo = fitting_AA(start);
+
+	cout << "\n";
+	cout << "  F(X) = " << ynewlo << "\n";
+
+	nelmin(fitting_AA, n, start, xmin, &ynewlo, reqmin, step,
+		konvge, kcount, &icount, &numres, &ifault);
+
+	cout << "\n";
+	cout << "  Return code IFAULT = " << ifault << "\n";
+	cout << "\n";
+	cout << "  Estimate of minimizing value X*:\n";
+	cout << "\n";
+	for (int i = 0; i < n; i++)
+	{
+		cout << "  " << setw(14) << xmin[i] << "\n";
+	}
+
+	cout << "\n";
+	cout << "  F(X*) = " << ynewlo << "\n";
+
+	cout << "\n";
+	cout << "  Number of iterations = " << icount << "\n";
+	cout << "  Number of restarts =   " << numres << "\n";
+	
+	potentials[0].A_1 = xmin[0];
+	potentials[0].A_0 = xmin[1];
+	potentials[0].s = xmin[2];
+	potentials[0].p = xmin[3];
+	potentials[0].q = xmin[4];
+	potentials[0].r0 = xmin[5];
+	///////////////////////////////////////////////////////
+	cout << "\n";
+	cout << "AB fitting:\n";
+	cout << "\n";
+
+	start[0] = 0;
+	start[1] = 0.1028;
+	start[2] = 1.178;
+	start[3] = 10.928;
+	start[4] = 3.139;
+	start[5] = lattice_constant / sqrt(2);
+
+	reqmin = 1.0E-08;
+
+	step[0] = 1.0;
+	step[1] = 1.0;
+	step[2] = 1.0;
+	step[3] = 1.0;
+	step[4] = 1.0;
+	step[5] = 1.0;
+
+	konvge = 10;
+	kcount = 500;
+
+	cout << "\n";
+	cout << "  Starting point X:\n";
+	cout << "\n";
+	for (int i = 0; i < n; i++)
+	{
+		cout << "  " << setw(14) << start[i] << "\n";
+	}
+
+	ynewlo = fitting_AB(start);
+
+	cout << "\n";
+	cout << "  F(X) = " << ynewlo << "\n";
+
+	nelmin(fitting_AB, n, start, xmin, &ynewlo, reqmin, step,
+		konvge, kcount, &icount, &numres, &ifault);
+
+	cout << "\n";
+	cout << "  Return code IFAULT = " << ifault << "\n";
+	cout << "\n";
+	cout << "  Estimate of minimizing value X*:\n";
+	cout << "\n";
+	for (int i = 0; i < n; i++)
+	{
+		cout << "  " << setw(14) << xmin[i] << "\n";
+	}
+
+	cout << "\n";
+	cout << "  F(X*) = " << ynewlo << "\n";
+
+	cout << "\n";
+	cout << "  Number of iterations = " << icount << "\n";
+	cout << "  Number of restarts =   " << numres << "\n";
+
+	potentials[1].A_1 = xmin[0];
+	potentials[1].A_0 = xmin[1];
+	potentials[1].s = xmin[2];
+	potentials[1].p = xmin[3];
+	potentials[1].q = xmin[4];
+	potentials[1].r0 = xmin[5];
+	///////////////////////////////////////////////////////
+	cout << "\n";
+	cout << "BB fitting:\n";
+	cout << "\n";
+
+	start[0] = 0;
+	start[1] = 0.1028;
+	start[2] = 1.178;
+	start[3] = 10.928;
+	start[4] = 3.139;
+	start[5] = lattice_constant / sqrt(2);
+
+	reqmin = 1.0E-08;
+
+	step[0] = 1.0;
+	step[1] = 1.0;
+	step[2] = 1.0;
+	step[3] = 1.0;
+	step[4] = 1.0;
+	step[5] = 1.0;
+
+	konvge = 10;
+	kcount = 500;
+
+	cout << "\n";
+	cout << "  Starting point X:\n";
+	cout << "\n";
+	for (int i = 0; i < n; i++)
+	{
+		cout << "  " << setw(14) << start[i] << "\n";
+	}
+
+	ynewlo = fitting_BB(start);
+
+	cout << "\n";
+	cout << "  F(X) = " << ynewlo << "\n";
+
+	nelmin(fitting_BB, n, start, xmin, &ynewlo, reqmin, step,
+		konvge, kcount, &icount, &numres, &ifault);
+
+	cout << "\n";
+	cout << "  Return code IFAULT = " << ifault << "\n";
+	cout << "\n";
+	cout << "  Estimate of minimizing value X*:\n";
+	cout << "\n";
+	for (int i = 0; i < n; i++)
+	{
+		cout << "  " << setw(14) << xmin[i] << "\n";
+	}
+
+	cout << "\n";
+	cout << "  F(X*) = " << ynewlo << "\n";
+
+	cout << "\n";
+	cout << "  Number of iterations = " << icount << "\n";
+	cout << "  Number of restarts =   " << numres << "\n";
+
+	potentials[2].A_1 = xmin[0];
+	potentials[2].A_0 = xmin[1];
+	potentials[2].s = xmin[2];
+	potentials[2].p = xmin[3];
+	potentials[2].q = xmin[4];
+	potentials[2].r0 = xmin[5];
+
+	delete[] start;
+	delete[] step;
+	delete[] xmin;
 	return 0;
 }
