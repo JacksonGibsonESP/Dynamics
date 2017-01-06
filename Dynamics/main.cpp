@@ -430,7 +430,7 @@ void calc_E_on_dim() {
 	E_on_dim = (E_dim_surf2 - E_surf2) - 2 * (E_adatom_surf2 - E_surf2);
 }
 
-double fitting_AA(double x[6]) {
+double fitting_BB(double x[6]) {
 	potentials[0].A_1 = x[0];
 	potentials[0].A_0 = x[1];
 	potentials[0].s = x[2];
@@ -461,7 +461,7 @@ double fitting_AB(double x[6]) {
 	return sqrt((E_sol_r - E_sol) * (E_sol_r - E_sol) / E_sol_r * E_sol_r);
 }
 
-double fitting_BB(double x[6]) {
+double fitting_AA(double x[6]) {
 		potentials[2].A_1 = x[0];
 		potentials[2].A_0 = x[1];
 		potentials[2].s = x[2];
@@ -474,6 +474,88 @@ double fitting_BB(double x[6]) {
 		return sqrt(((E_in_dim_r - E_in_dim) * (E_in_dim_r - E_in_dim) / E_in_dim_r * E_in_dim_r +
 			(E_on_dim_r - E_on_dim) * (E_on_dim_r - E_on_dim) / E_on_dim_r * E_on_dim_r) / 2.0);
 	}
+
+void print_potentials(RGL potentials[3]) {
+	ofstream fout("BB.txt", ofstream::out);
+
+	if (!fout.is_open()) {
+		cout << "BB.txt can not be opened\n";
+		exit(0);
+	}
+
+	const int size = 100;
+	double x[size];
+	double y[size];
+
+	double step = lattice_constant / 50.0;
+	double curr_x = step;
+
+	for (int i = 0; i < size; ++i) {
+		x[i] = curr_x;
+		curr_x += step;
+		double E_r = (potentials[0].A_1 * (x[i] - potentials[0].r0) + potentials[0].A_0)
+			* exp(-potentials[0].p * (x[i] / potentials[0].r0 - 1));
+		double E_b = - sqrt(potentials[0].s * potentials[0].s
+			* exp(-2 * potentials[0].q * (x[i] / potentials[0].r0 - 1)));
+		y[i] = E_r + E_b;
+	}
+	fout << size << '\n';
+	fout << "BB potential\n";
+	for (int i = 0; i < size; ++i) {
+		fout << x[i] << " " << y[i] << '\n';
+	}
+	fout.close();
+
+	fout.open("AB.txt", ofstream::out);
+
+	if (!fout.is_open()) {
+		cout << "AB.txt can not be opened\n";
+		exit(0);
+	}
+
+	curr_x = step;
+
+	for (int i = 0; i < size; ++i) {
+		x[i] = curr_x;
+		curr_x += step;
+		double E_r = (potentials[1].A_1 * (x[i] - potentials[1].r0) + potentials[1].A_0)
+			* exp(-potentials[1].p * (x[i] / potentials[1].r0 - 1));
+		double E_b = -sqrt(potentials[1].s * potentials[1].s
+			* exp(-2 * potentials[1].q * (x[i] / potentials[1].r0 - 1)));
+		y[i] = E_r + E_b;
+	}
+	fout << size << '\n';
+	fout << "AB potential\n";
+	for (int i = 0; i < size; ++i) {
+		fout << x[i] << " " << y[i] << '\n';
+	}
+	fout.close();
+
+	fout.open("AA.txt", ofstream::out);
+
+	if (!fout.is_open()) {
+		cout << "AA.txt can not be opened\n";
+		exit(0);
+	}
+
+	curr_x = step;
+
+	for (int i = 0; i < size; ++i) {
+		x[i] = curr_x;
+		curr_x += step;
+		double E_r = (potentials[2].A_1 * (x[i] - potentials[2].r0) + potentials[2].A_0)
+			* exp(-potentials[2].p * (x[i] / potentials[2].r0 - 1));
+		double E_b = -sqrt(potentials[2].s * potentials[2].s
+			* exp(-2 * potentials[2].q * (x[i] / potentials[2].r0 - 1)));
+		y[i] = E_r + E_b;
+	}
+	fout << size << '\n';
+	fout << "AA potential\n";
+	for (int i = 0; i < size; ++i) {
+		fout << x[i] << " " << y[i] << '\n';
+	}
+	fout.close();
+}
 
 int main(int argc, char* argv[]) {
 
@@ -533,7 +615,7 @@ int main(int argc, char* argv[]) {
 	xmin = new double[n];
 	///////////////////////////////////////////////////////
 	cout << "\n";
-	cout << "AA fitting:\n";
+	cout << "BB fitting:\n";
 	cout << "\n";
 
 	start[0] = 0;
@@ -563,12 +645,12 @@ int main(int argc, char* argv[]) {
 		cout << "  " << setw(14) << start[i] << "\n";
 	}
 
-	ynewlo = fitting_AA(start);
+	ynewlo = fitting_BB(start);
 
 	cout << "\n";
 	cout << "  F(X) = " << ynewlo << "\n";
 
-	nelmin(fitting_AA, n, start, xmin, &ynewlo, reqmin, step,
+	nelmin(fitting_BB, n, start, xmin, &ynewlo, reqmin, step,
 		konvge, kcount, &icount, &numres, &ifault);
 
 	cout << "\n";
@@ -667,7 +749,7 @@ int main(int argc, char* argv[]) {
 	potentials[1].r0 = xmin[5];
 	///////////////////////////////////////////////////////
 	cout << "\n";
-	cout << "BB fitting:\n";
+	cout << "AA fitting:\n";
 	cout << "\n";
 
 	start[0] = 0;
@@ -697,12 +779,12 @@ int main(int argc, char* argv[]) {
 		cout << "  " << setw(14) << start[i] << "\n";
 	}
 
-	ynewlo = fitting_BB(start);
+	ynewlo = fitting_AA(start);
 
 	cout << "\n";
 	cout << "  F(X) = " << ynewlo << "\n";
 
-	nelmin(fitting_BB, n, start, xmin, &ynewlo, reqmin, step,
+	nelmin(fitting_AA, n, start, xmin, &ynewlo, reqmin, step,
 		konvge, kcount, &icount, &numres, &ifault);
 
 	cout << "\n";
@@ -737,7 +819,7 @@ int main(int argc, char* argv[]) {
 	delete[] step;
 	delete[] xmin;
 
-	cout << "\nA-A potential:\n" <<
+	cout << "\nB-B potential:\n" <<
 		"A1 = " << potentials[0].A_1 << '\n' <<
 		"A0 = " << potentials[0].A_0 << '\n' <<
 		"s = " << potentials[0].s << '\n' <<
@@ -753,13 +835,15 @@ int main(int argc, char* argv[]) {
 		"q = " << potentials[1].q << '\n' <<
 		"r0 = " << potentials[1].r0 << '\n';
 
-	cout << "\nB-B potential:\n" <<
+	cout << "\nA-A potential:\n" <<
 		"A1 = " << potentials[2].A_1 << '\n' <<
 		"A0 = " << potentials[2].A_0 << '\n' <<
 		"s = " << potentials[2].s << '\n' <<
 		"p = " << potentials[2].p << '\n' <<
 		"q = " << potentials[2].q << '\n' <<
 		"r0 = " << potentials[2].r0 << '\n';
+
+	print_potentials(potentials);
 
 	return 0;
 }
