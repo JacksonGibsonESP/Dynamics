@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <iomanip>
+#include <chrono>
 #include "asa047.hpp"
 using namespace std;
 
@@ -11,8 +12,6 @@ public:
 	double x = 0;
 	double y = 0;
 	double z = 0;
-	double E_r = 0;
-	double E_b = 0;
 	bool impurity = false;
 };
 
@@ -164,12 +163,14 @@ double full_energy(vector <vector<Atom>> &contains, int n_x, int n_y, int n_z, d
 	double bulk_size_y = translation[1] + translation[4] + translation[7];
 	double bulk_size_z = translation[2] + translation[5] + translation[8];
 
+	#pragma omp parallel for num_threads(3) 
 	for (int i = 0; i < n_x * n_y * n_z; ++i) {
 		for (Atom& particle : contains[i]) {
 			int atomcell_x = i % n_x;
 			int atomcell_y = i / n_x % n_y;
 			int atomcell_z = i / (n_x * n_y);
 			double E_b_temp = 0;
+			double E_r_temp = 0;
 			for (int dx = -1; dx <= 1; ++dx) {
 				for (int dy = -1; dy <= 1; ++dy) {
 					for (int dz = -1; dz <= 1; ++dz) {
@@ -235,7 +236,7 @@ double full_energy(vector <vector<Atom>> &contains, int n_x, int n_y, int n_z, d
 								+ (particle2.z - particle.z) * (particle2.z - particle.z));
 
 							//repulsive and bond energies
-							particle.E_r += (potentials[choice].A_1 * (r - potentials[choice].r0) + potentials[choice].A_0)
+							E_r_temp += (potentials[choice].A_1 * (r - potentials[choice].r0) + potentials[choice].A_0)
 								* exp(-potentials[choice].p * (r / potentials[choice].r0 - 1));
 							E_b_temp += potentials[choice].s * potentials[choice].s
 								* exp(-2 * potentials[choice].q * (r / potentials[choice].r0 - 1));
@@ -243,10 +244,8 @@ double full_energy(vector <vector<Atom>> &contains, int n_x, int n_y, int n_z, d
 					}
 				}
 			}
-			particle.E_b -= sqrt(E_b_temp);
-			E_full += particle.E_r + particle.E_b;
-			particle.E_r = 0;
-			particle.E_b = 0;
+			#pragma omp critical
+			E_full += E_r_temp - sqrt(E_b_temp);
 		}
 	}
 	return E_full;
@@ -596,6 +595,8 @@ int main(int argc, char* argv[]) {
 	tr.alpha = alpha;
 	V_0 = lattice_constant * lattice_constant * lattice_constant * n_x * n_y * n_z;
 
+	auto start_time = chrono::high_resolution_clock::now();
+
 	int icount;
 	int ifault;
 	int kcount;
@@ -845,5 +846,7 @@ int main(int argc, char* argv[]) {
 
 	print_potentials(potentials);
 
+	auto end_time = chrono::high_resolution_clock::now();
+	cout << '\n' << chrono::duration_cast<chrono::milliseconds>(end_time - start_time).count() << " ms\n";
 	return 0;
 }
