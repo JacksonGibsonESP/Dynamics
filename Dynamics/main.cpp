@@ -223,9 +223,9 @@ double full_energy(vector <vector<Atom>> &contains, int n_x, int n_y, int n_z, d
 
 							int choice = 0;
 							if (particle.impurity && particle2.impurity) {
-								choice = 2; //B-B
+								choice = 2; //A-A
 							} else if (!particle.impurity && !particle2.impurity) {
-								choice = 0; //A-A
+								choice = 0; //B-B
 							} else {
 								choice = 1; //A-B
 							}
