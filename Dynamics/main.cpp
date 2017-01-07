@@ -541,11 +541,11 @@ void print_potentials(RGL potentials[3]) {
 		exit(0);
 	}
 
-	curr_x = 1.6;
+	curr_x = 2.25;
 
 	for (int i = 0; i < size; ++i) {
 		x[i] = curr_x;
-		curr_x += step * 2;
+		curr_x += step * 2.0;
 		double E_r = (potentials[2].A_1 * (x[i] - potentials[2].r0) + potentials[2].A_0)
 			* exp(-potentials[2].p * (x[i] / potentials[2].r0 - 1));
 		double E_b = -sqrt(potentials[2].s * potentials[2].s
