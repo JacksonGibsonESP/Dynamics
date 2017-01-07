@@ -476,7 +476,7 @@ double fitting_AA(double x[6]) {
 		cout << E_in_dim << " " << E_on_dim << '\n';
 		return sqrt(((E_in_dim_r - E_in_dim) * (E_in_dim_r - E_in_dim) / E_in_dim_r * E_in_dim_r +
 			(E_on_dim_r - E_on_dim) * (E_on_dim_r - E_on_dim) / E_on_dim_r * E_on_dim_r) / 2.0);
-	}
+}
 
 void print_potentials(RGL potentials[3]) {
 	ofstream fout("BB.txt", ofstream::out);
@@ -562,7 +562,7 @@ void print_potentials(RGL potentials[3]) {
 
 int main(int argc, char* argv[]) {
 
-	if (argc != 7) {
+	if (argc != 8) {
 		cout << "Insufficient number of arguments\n";
 		return 0;
 	}
@@ -572,9 +572,27 @@ int main(int argc, char* argv[]) {
 	n_y = 3;
 	n_z = 3;
 
-	lattice_constant = 4.085;
-	cutoff = 1.7 * lattice_constant;
+	ifstream fin(argv[7], ifstream::in);
 
+	if (!fin.is_open()) {
+		cout << "File can not be opened\n";
+		return 0;
+	}
+
+	string dumb;
+	getline(fin, dumb);
+	fin >> E_coh_r;
+	fin >> B_r;
+	fin >> C11_r;
+	fin >> C12_r;
+	fin >> C44_r;
+	fin >> E_sol_r;
+	fin >> E_in_dim_r;
+	fin >> E_on_dim_r;
+	fin >> E_coh_imp;
+	fin >> lattice_constant;
+
+	cutoff = 1.7 * lattice_constant;
 
 	bulk_atom_count = convert(argv[1], n_x, n_y, n_z, lattice_constant, bulk);
 	convert(argv[2], n_x, n_y, n_z, lattice_constant, imp);
@@ -582,17 +600,6 @@ int main(int argc, char* argv[]) {
 	convert(argv[4], n_x, n_y, n_z, lattice_constant, adatom_in_surf);
 	convert(argv[5], n_x, n_y, n_z, lattice_constant, dim_on_surf);
 	convert(argv[6], n_x, n_y, n_z, lattice_constant, adatom_on_surf);
-
-	//Ag-Ni
-	E_coh_r = -2.960;
-	B_r = 1.08;
-	C11_r = 1.32;
-	C12_r = 0.97;
-	C44_r = 0.51;
-	E_sol_r = 0.539;
-	E_in_dim_r = 0.06;
-	E_on_dim_r = -0.56;
-	E_coh_imp = -4.435;
 
 	tr.lattice_constant = lattice_constant;
 	tr.alpha = alpha;
