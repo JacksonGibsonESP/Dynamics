@@ -104,18 +104,17 @@ public:
 
 //without impurities
 vector <vector<Atom>> bulk;
+int bulk_atom_count;
 //with one impurity for E_sol
 vector <vector<Atom>> imp;
 //with dimer in surf
-vector <vector<Atom>> dim;
+vector <vector<Atom>> dim_in_surf;
 //with adatom in surf
-vector <vector<Atom>> adatom;
+vector <vector<Atom>> adatom_in_surf;
 //with dimer on surf
 vector <vector<Atom>> dim_on_surf;
 //with adatom on surf
 vector <vector<Atom>> adatom_on_surf;
-//surf energy
-vector <vector<Atom>> surf;
 
 Translation tr;
 int n_x, n_y, n_z;
@@ -126,7 +125,6 @@ RGL potentials[3];
 double V_0;
 double E_full;
 double qsi = 0.8018993929636421;
-int atom_count;
 double E_coh;
 double B;
 double C11;
@@ -317,6 +315,10 @@ int convert(string filename, int n_x, int n_y, int n_z, double lattice_constant,
 
 	int size = 0;
 	fin >> size;
+	
+	if (size > bulk_atom_count) {
+		out.resize(n_x * n_y * (n_z + 1));
+	}
 
 	while (fin.good()) {
 		Atom tmp;
@@ -341,7 +343,7 @@ int convert(string filename, int n_x, int n_y, int n_z, double lattice_constant,
 void calc_E_coh() {
 	tr.make_it_pure();
 	E_full = full_energy(bulk, n_x, n_y, n_z, cutoff, potentials, tr.translation, false);
-	E_coh = E_full / atom_count;
+	E_coh = E_full / bulk_atom_count;
 }
 
 void calc_B() {
@@ -416,17 +418,19 @@ void calc_E_sol() {
 }
 
 void calc_E_in_dim() {
-	double E_dim_surf = full_energy(dim, n_x, n_y, n_z, cutoff, potentials, tr.translation, true);
+	tr.make_it_pure();
+	double E_dim_in_surf = full_energy(dim_in_surf, n_x, n_y, n_z, cutoff, potentials, tr.translation, true);
 	double E_surf = full_energy(bulk, n_x, n_y, n_z, cutoff, potentials, tr.translation, true);
-	double E_adatom_surf = full_energy(adatom, n_x, n_y, n_z, cutoff, potentials, tr.translation, true);
-	E_in_dim = (E_dim_surf - E_surf) - 2 * (E_adatom_surf - E_surf);
+	double E_adatom_in_surf = full_energy(adatom_in_surf, n_x, n_y, n_z, cutoff, potentials, tr.translation, true);
+	E_in_dim = (E_dim_in_surf - E_surf) - 2 * (E_adatom_in_surf - E_surf);
 }
 
 void calc_E_on_dim() {
-	double E_dim_surf2 = full_energy(dim_on_surf, n_x, n_y, n_z, cutoff, potentials, tr.translation, true);
-	double E_surf2 = full_energy(surf, n_x, n_y, n_z, cutoff, potentials, tr.translation, true);
-	double E_adatom_surf2 = full_energy(adatom_on_surf, n_x, n_y, n_z, cutoff, potentials, tr.translation, true);
-	E_on_dim = (E_dim_surf2 - E_surf2) - 2 * (E_adatom_surf2 - E_surf2);
+	tr.make_it_pure();
+	double E_dim_on_surf = full_energy(dim_on_surf, n_x, n_y, n_z + 1, cutoff, potentials, tr.translation, true);
+	double E_surf = full_energy(bulk, n_x, n_y, n_z, cutoff, potentials, tr.translation, true);
+	double E_adatom_on_surf = full_energy(adatom_on_surf, n_x, n_y, n_z + 1, cutoff, potentials, tr.translation, true);
+	E_on_dim = (E_dim_on_surf - E_surf) - 2 * (E_adatom_on_surf - E_surf);
 }
 
 double fitting_BB(double x[6]) {
@@ -486,8 +490,8 @@ void print_potentials(RGL potentials[3]) {
 	double x[size];
 	double y[size];
 
-	double step = lattice_constant / 50.0;
-	double curr_x = step;
+	double step = lattice_constant / 100.0;
+	double curr_x = 1.6;
 
 	for (int i = 0; i < size; ++i) {
 		x[i] = curr_x;
@@ -512,7 +516,7 @@ void print_potentials(RGL potentials[3]) {
 		exit(0);
 	}
 
-	curr_x = step;
+	curr_x = 1.6;
 
 	for (int i = 0; i < size; ++i) {
 		x[i] = curr_x;
@@ -537,7 +541,7 @@ void print_potentials(RGL potentials[3]) {
 		exit(0);
 	}
 
-	curr_x = step;
+	curr_x = 1.6;
 
 	for (int i = 0; i < size; ++i) {
 		x[i] = curr_x;
@@ -558,7 +562,7 @@ void print_potentials(RGL potentials[3]) {
 
 int main(int argc, char* argv[]) {
 
-	if (argc != 8) {
+	if (argc != 7) {
 		cout << "Insufficient number of arguments\n";
 		return 0;
 	}
@@ -572,13 +576,12 @@ int main(int argc, char* argv[]) {
 	cutoff = 1.7 * lattice_constant;
 
 
-	atom_count = convert(argv[1], n_x, n_y, n_z, lattice_constant, bulk);
+	bulk_atom_count = convert(argv[1], n_x, n_y, n_z, lattice_constant, bulk);
 	convert(argv[2], n_x, n_y, n_z, lattice_constant, imp);
-	convert(argv[3], n_x, n_y, n_z, lattice_constant, dim);
-	convert(argv[4], n_x, n_y, n_z, lattice_constant, adatom);
+	convert(argv[3], n_x, n_y, n_z, lattice_constant, dim_in_surf);
+	convert(argv[4], n_x, n_y, n_z, lattice_constant, adatom_in_surf);
 	convert(argv[5], n_x, n_y, n_z, lattice_constant, dim_on_surf);
 	convert(argv[6], n_x, n_y, n_z, lattice_constant, adatom_on_surf);
-	convert(argv[7], n_x, n_y, n_z, lattice_constant, surf);
 
 	//Ag-Ni
 	E_coh_r = -2.960;
@@ -687,20 +690,20 @@ int main(int argc, char* argv[]) {
 	cout << "\n";
 
 	start[0] = 0;
-	start[1] = 0.1028;
-	start[2] = 1.178;
-	start[3] = 10.928;
-	start[4] = 3.139;
-	start[5] = lattice_constant / sqrt(2);
+	start[1] = 0.0376;
+	start[2] = 1.070;
+	start[3] = 16.999;
+	start[4] = 1.189;
+	start[5] = 3.523 / sqrt(2);
 
 	reqmin = 1.0E-08;
 
-	step[0] = 1.0;
-	step[1] = 1.0;
-	step[2] = 1.0;
-	step[3] = 1.0;
-	step[4] = 1.0;
-	step[5] = 1.0;
+	step[0] = 0.1;
+	step[1] = 0.1;
+	step[2] = 0.1;
+	step[3] = 0.1;
+	step[4] = 0.1;
+	step[5] = 0.1;
 
 	konvge = 10;
 	kcount = 500;
@@ -754,18 +757,18 @@ int main(int argc, char* argv[]) {
 	cout << "\n";
 
 	start[0] = 0;
-	start[1] = 0.1028;
-	start[2] = 1.178;
-	start[3] = 10.928;
-	start[4] = 3.139;
-	start[5] = lattice_constant / sqrt(2);
+	start[1] = 0.0376;
+	start[2] = 1.070;
+	start[3] = 16.999;
+	start[4] = 1.189;
+	start[5] = 3.523 / sqrt(2);
 
 	reqmin = 1.0E-08;
 
 	step[0] = 1.0;
 	step[1] = 1.0;
 	step[2] = 1.0;
-	step[3] = 1.0;
+	step[3] = 0.1;
 	step[4] = 1.0;
 	step[5] = 1.0;
 
