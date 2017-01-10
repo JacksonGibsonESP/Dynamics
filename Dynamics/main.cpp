@@ -161,7 +161,7 @@ double full_energy(vector <vector<Atom>> &contains, int n_x, int n_y, int n_z, d
 	double bulk_size_y = translation[1] + translation[4] + translation[7];
 	double bulk_size_z = translation[2] + translation[5] + translation[8];
 
-	#pragma omp parallel for num_threads(3) 
+	#pragma omp parallel for reduction(+:E_full) num_threads(3) 
 	for (int i = 0; i < n_x * n_y * n_z; ++i) {
 		for (Atom& particle : contains[i]) {
 			int atomcell_x = i % n_x;
@@ -242,7 +242,6 @@ double full_energy(vector <vector<Atom>> &contains, int n_x, int n_y, int n_z, d
 					}
 				}
 			}
-			#pragma omp critical
 			E_full += E_r_temp - sqrt(E_b_temp);
 		}
 	}
