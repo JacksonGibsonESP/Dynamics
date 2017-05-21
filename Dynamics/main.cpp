@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <iomanip>
+#include <random>
 #include <chrono>
 #include "asa047.hpp"
 using namespace std;
@@ -308,7 +309,7 @@ int convert(string filename, int n_x, int n_y, int n_z, double lattice_constant,
 	ifstream fin(filename, ifstream::in);
 
 	if (!fin.is_open()) {
-		cout << "File can not be opened\n";
+		std::cout << "File can not be opened\n";
 		exit(0);
 	}
 
@@ -443,7 +444,7 @@ double fitting_BB(double x[6]) {
 	calc_B();
 	calc_C11_C12();
 	calc_C44();
-	cout << E_coh << " " << B << " " << C11 << " " << C12 << " " << C44 << '\n';
+	std::cout << E_coh << " " << B << " " << C11 << " " << C12 << " " << C44 << '\n';
 	return sqrt(((E_coh_r - E_coh) * (E_coh_r - E_coh) / E_coh_r * E_coh_r +
 		(B_r - B) * (B_r - B) / B_r * B_r +
 		(C11_r - C11) * (C11_r - C11) / C11_r * C11_r +
@@ -459,7 +460,7 @@ double fitting_AB(double x[6]) {
 	potentials[1].q = x[4];
 	potentials[1].r0 = x[5];
 	calc_E_sol();
-	cout << E_sol << "\n";
+	std::cout << E_sol << "\n";
 	return sqrt((E_sol_r - E_sol) * (E_sol_r - E_sol) / E_sol_r * E_sol_r);
 }
 
@@ -472,7 +473,7 @@ double fitting_AA(double x[6]) {
 		potentials[2].r0 = x[5];
 		calc_E_in_dim();
 		calc_E_on_dim();
-		cout << E_in_dim << " " << E_on_dim << '\n';
+		std::cout << E_in_dim << " " << E_on_dim << '\n';
 		return sqrt(((E_in_dim_r - E_in_dim) * (E_in_dim_r - E_in_dim) / E_in_dim_r * E_in_dim_r +
 			(E_on_dim_r - E_on_dim) * (E_on_dim_r - E_on_dim) / E_on_dim_r * E_on_dim_r) / 2.0);
 }
@@ -481,7 +482,7 @@ void print_potentials(RGL potentials[3]) {
 	ofstream fout("BB.txt", ofstream::out);
 
 	if (!fout.is_open()) {
-		cout << "BB.txt can not be opened\n";
+		std::cout << "BB.txt can not be opened\n";
 		exit(0);
 	}
 
@@ -511,7 +512,7 @@ void print_potentials(RGL potentials[3]) {
 	fout.open("AB.txt", ofstream::out);
 
 	if (!fout.is_open()) {
-		cout << "AB.txt can not be opened\n";
+		std::cout << "AB.txt can not be opened\n";
 		exit(0);
 	}
 
@@ -536,7 +537,7 @@ void print_potentials(RGL potentials[3]) {
 	fout.open("AA.txt", ofstream::out);
 
 	if (!fout.is_open()) {
-		cout << "AA.txt can not be opened\n";
+		std::cout << "AA.txt can not be opened\n";
 		exit(0);
 	}
 
@@ -559,10 +560,68 @@ void print_potentials(RGL potentials[3]) {
 	fout.close();
 }
 
+void G(double * x, double * e, int n) {
+	static long long int seed = chrono::system_clock::now().time_since_epoch().count();
+	static default_random_engine generator(seed);
+	static vector<uniform_real_distribution<double>*> distribution;
+	static bool firstStart = true;
+	if (firstStart) {
+		firstStart = false;
+		for (int i = 0; i < n; i++) {
+			distribution.push_back(new uniform_real_distribution<double>(0, 2 * e[i]));
+		}
+	}
+	for (int i = 0; i < n; i++) {
+		x[i] = (*distribution[i])(generator);
+	}
+}
+
+double my_rand() {
+	static long long int seed = chrono::system_clock::now().time_since_epoch().count();
+	static default_random_engine generator(seed);
+	static uniform_real_distribution<double> distribution(0, 1);
+	return distribution(generator);
+}
+
+
+double T(int i) {
+	return exp(8 - i * 0.05);
+}
+
+
+void annealing(double fn(double x[]), int n, double start[], double xmin[]) {
+	int iteration = 0;
+	double t = T(iteration);
+	double * x = new double[n];
+	double * temp = new double[n];
+	G(x, start, n);
+	while (t > 0.01) {
+		G(temp, start, n);
+		double dE = fn(temp) - fn(x);
+		if (dE <= 0) {
+			memcpy(x, temp, n * sizeof(double));
+		}
+		else {
+			double p = exp(-dE / t);
+			if (my_rand() <= p) {
+				memcpy(x, temp, n * sizeof(double));
+			}
+		}
+//		for (int i = 0; i < n; i++) {
+//			std::cout << x[i] << " ";
+//		}
+//		std::cout << fn(x) << " " << t << "\n";
+		++iteration;
+		t = T(iteration);
+	}
+	memcpy(xmin, x, n * sizeof(double));
+	std::cout << iteration << "\n";
+}
+
 int main(int argc, char* argv[]) {
 
 	if (argc != 8) {
-		cout << "Insufficient number of arguments\n";
+		std::cout << "Insufficient number of arguments\n";
 		return 0;
 	}
 
@@ -574,7 +633,7 @@ int main(int argc, char* argv[]) {
 	ifstream fin(argv[7], ifstream::in);
 
 	if (!fin.is_open()) {
-		cout << "File can not be opened\n";
+		std::cout << "File can not be opened\n";
 		return 0;
 	}
 
@@ -624,9 +683,9 @@ int main(int argc, char* argv[]) {
 	step = new double[n];
 	xmin = new double[n];
 	///////////////////////////////////////////////////////
-	cout << "\n";
-	cout << "BB fitting:\n";
-	cout << "\n";
+	std::cout << "\n";
+	std::cout << "BB fitting:\n";
+	std::cout << "\n";
 
 	start[0] = 0;
 	start[1] = 0.1028;
@@ -647,42 +706,45 @@ int main(int argc, char* argv[]) {
 	konvge = 10;
 	kcount = 500;
 
-	cout << "\n";
-	cout << "  Starting point X:\n";
-	cout << "\n";
+	std::cout << "\n";
+	std::cout << "  Starting point X:\n";
+	std::cout << "\n";
 	for (int i = 0; i < n; i++)
 	{
-		cout << "  " << setw(14) << start[i] << "\n";
+		std::cout << "  " << setw(14) << start[i] << "\n";
 	}
 
 	ynewlo = fitting_BB(start);
 
-	cout << "\n";
-	cout << "  F(X) = " << ynewlo << "\n";
+	std::cout << "\n";
+	std::cout << "  F(X) = " << ynewlo << "\n";
 
-	nelmin(fitting_BB, n, start, xmin, &ynewlo, reqmin, step,
-		konvge, kcount, &icount, &numres, &ifault);
+	//nelmin(fitting_BB, n, start, xmin, &ynewlo, reqmin, step,
+	//	konvge, kcount, &icount, &numres, &ifault);
 
-	cout << "\n";
-	cout << "  Return code IFAULT = " << ifault << "\n";
-	cout << "\n";
-	cout << "  Estimate of minimizing value X*:\n";
-	cout << "\n";
+	annealing(fitting_BB, n, start, xmin);
+	ynewlo = fitting_BB(xmin);
+
+//	std::cout << "\n";
+//	std::cout << "  Return code IFAULT = " << ifault << "\n";
+//	std::cout << "\n";
+	std::cout << "  Estimate of minimizing value X*:\n";
+	std::cout << "\n";
 	for (int i = 0; i < n; i++)
 	{
-		cout << "  " << setw(14) << xmin[i] << "\n";
+		std::cout << "  " << setw(14) << xmin[i] << "\n";
 	}
 
-	cout << "\n";
-	cout << "  F(X*) = " << ynewlo << "\n";
+	std::cout << "\n";
+	std::cout << "  F(X*) = " << ynewlo << "\n";
 
-	cout << "\n";
-	cout << "  Number of iterations = " << icount << "\n";
-	cout << "  Number of restarts =   " << numres << "\n";
+	std::cout << "\n";
+	/*std::cout << "  Number of iterations = " << icount << "\n";
+	std::cout << "  Number of restarts =   " << numres << "\n";
 	
 	if (ifault != 0) {
 		return 0;
-	}
+	}*/
 
 	potentials[0].A_1 = xmin[0];
 	potentials[0].A_0 = xmin[1];
@@ -691,9 +753,9 @@ int main(int argc, char* argv[]) {
 	potentials[0].q = xmin[4];
 	potentials[0].r0 = xmin[5];
 	///////////////////////////////////////////////////////
-	cout << "\n";
-	cout << "AB fitting:\n";
-	cout << "\n";
+	std::cout << "\n";
+	std::cout << "AB fitting:\n";
+	std::cout << "\n";
 
 	start[0] = 0;
 	start[1] = 0.0376;
@@ -714,41 +776,41 @@ int main(int argc, char* argv[]) {
 	konvge = 10;
 	kcount = 500;
 
-	cout << "\n";
-	cout << "  Starting point X:\n";
-	cout << "\n";
+	std::cout << "\n";
+	std::cout << "  Starting point X:\n";
+	std::cout << "\n";
 	for (int i = 0; i < n; i++)
 	{
-		cout << "  " << setw(14) << start[i] << "\n";
+		std::cout << "  " << setw(14) << start[i] << "\n";
 	}
 
 	ynewlo = fitting_AB(start);
 
-	cout << "\n";
-	cout << "  F(X) = " << ynewlo << "\n";
+	std::cout << "\n";
+	std::cout << "  F(X) = " << ynewlo << "\n";
 
 	nelmin(fitting_AB, n, start, xmin, &ynewlo, reqmin, step,
 		konvge, kcount, &icount, &numres, &ifault);
 
-	cout << "\n";
-	cout << "  Return code IFAULT = " << ifault << "\n";
-	cout << "\n";
-	cout << "  Estimate of minimizing value X*:\n";
-	cout << "\n";
+	std::cout << "\n";
+	std::cout << "  Return code IFAULT = " << ifault << "\n";
+	std::cout << "\n";
+	std::cout << "  Estimate of minimizing value X*:\n";
+	std::cout << "\n";
 	for (int i = 0; i < n; i++)
 	{
-		cout << "  " << setw(14) << xmin[i] << "\n";
+		std::cout << "  " << setw(14) << xmin[i] << "\n";
 	}
 
-	cout << "\n";
-	cout << "  F(X*) = " << ynewlo << "\n";
+	std::cout << "\n";
+	std::cout << "  F(X*) = " << ynewlo << "\n";
 
-	cout << "\n";
-	cout << "  Number of iterations = " << icount << "\n";
-	cout << "  Number of restarts =   " << numres << "\n";
+	std::cout << "\n";
+	std::cout << "  Number of iterations = " << icount << "\n";
+	std::cout << "  Number of restarts =   " << numres << "\n";
 
 	if (ifault != 0) {
-		return 0;
+		//return 0;
 	}
 
 	potentials[1].A_1 = xmin[0];
@@ -758,9 +820,9 @@ int main(int argc, char* argv[]) {
 	potentials[1].q = xmin[4];
 	potentials[1].r0 = xmin[5];
 	///////////////////////////////////////////////////////
-	cout << "\n";
-	cout << "AA fitting:\n";
-	cout << "\n";
+	std::cout << "\n";
+	std::cout << "AA fitting:\n";
+	std::cout << "\n";
 
 	start[0] = 0;
 	start[1] = 0.0376;
@@ -781,41 +843,41 @@ int main(int argc, char* argv[]) {
 	konvge = 10;
 	kcount = 500;
 
-	cout << "\n";
-	cout << "  Starting point X:\n";
-	cout << "\n";
+	std::cout << "\n";
+	std::cout << "  Starting point X:\n";
+	std::cout << "\n";
 	for (int i = 0; i < n; i++)
 	{
-		cout << "  " << setw(14) << start[i] << "\n";
+		std::cout << "  " << setw(14) << start[i] << "\n";
 	}
 
 	ynewlo = fitting_AA(start);
 
-	cout << "\n";
-	cout << "  F(X) = " << ynewlo << "\n";
+	std::cout << "\n";
+	std::cout << "  F(X) = " << ynewlo << "\n";
 
 	nelmin(fitting_AA, n, start, xmin, &ynewlo, reqmin, step,
 		konvge, kcount, &icount, &numres, &ifault);
 
-	cout << "\n";
-	cout << "  Return code IFAULT = " << ifault << "\n";
-	cout << "\n";
-	cout << "  Estimate of minimizing value X*:\n";
-	cout << "\n";
+	std::cout << "\n";
+	std::cout << "  Return code IFAULT = " << ifault << "\n";
+	std::cout << "\n";
+	std::cout << "  Estimate of minimizing value X*:\n";
+	std::cout << "\n";
 	for (int i = 0; i < n; i++)
 	{
-		cout << "  " << setw(14) << xmin[i] << "\n";
+		std::cout << "  " << setw(14) << xmin[i] << "\n";
 	}
 
-	cout << "\n";
-	cout << "  F(X*) = " << ynewlo << "\n";
+	std::cout << "\n";
+	std::cout << "  F(X*) = " << ynewlo << "\n";
 
-	cout << "\n";
-	cout << "  Number of iterations = " << icount << "\n";
-	cout << "  Number of restarts =   " << numres << "\n";
+	std::cout << "\n";
+	std::cout << "  Number of iterations = " << icount << "\n";
+	std::cout << "  Number of restarts =   " << numres << "\n";
 
 	if (ifault != 0) {
-		return 0;
+		//return 0;
 	}
 
 	potentials[2].A_1 = xmin[0];
@@ -829,7 +891,7 @@ int main(int argc, char* argv[]) {
 	delete[] step;
 	delete[] xmin;
 
-	cout << "\nB-B potential:\n" <<
+	std::cout << "\nB-B potential:\n" <<
 		"A1 = " << potentials[0].A_1 << '\n' <<
 		"A0 = " << potentials[0].A_0 << '\n' <<
 		"s = " << potentials[0].s << '\n' <<
@@ -837,7 +899,7 @@ int main(int argc, char* argv[]) {
 		"q = " << potentials[0].q << '\n' <<
 		"r0 = " << potentials[0].r0 << '\n';
 
-	cout << "\nA-B potential:\n" <<
+	std::cout << "\nA-B potential:\n" <<
 		"A1 = " << potentials[1].A_1 << '\n' <<
 		"A0 = " << potentials[1].A_0 << '\n' <<
 		"s = " << potentials[1].s << '\n' <<
@@ -845,7 +907,7 @@ int main(int argc, char* argv[]) {
 		"q = " << potentials[1].q << '\n' <<
 		"r0 = " << potentials[1].r0 << '\n';
 
-	cout << "\nA-A potential:\n" <<
+	std::cout << "\nA-A potential:\n" <<
 		"A1 = " << potentials[2].A_1 << '\n' <<
 		"A0 = " << potentials[2].A_0 << '\n' <<
 		"s = " << potentials[2].s << '\n' <<
@@ -856,6 +918,6 @@ int main(int argc, char* argv[]) {
 	print_potentials(potentials);
 
 	auto end_time = chrono::high_resolution_clock::now();
-	cout << '\n' << chrono::duration_cast<chrono::milliseconds>(end_time - start_time).count() << " ms\n";
+	std::cout << '\n' << chrono::duration_cast<chrono::milliseconds>(end_time - start_time).count() << " ms\n";
 	return 0;
 }
