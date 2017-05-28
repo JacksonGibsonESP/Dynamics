@@ -8,6 +8,7 @@
 #include "asa047.hpp"
 #include "annealing.h"
 #include "GRS.h"
+#include "NelderMead.h"
 using namespace std;
 
 class Atom {
@@ -669,7 +670,10 @@ int main(int argc, char* argv[]) {
 /*	annealing(fitting_BB, n, start, xmin);
 	ynewlo = fitting_BB(xmin);*/
 
-	GRS(fitting_BB, n, start, xmin);
+/*	GRS(fitting_BB, n, start, xmin);
+	ynewlo = fitting_BB(xmin);*/
+
+	NelderMead(fitting_BB, n, start, xmin);
 	ynewlo = fitting_BB(xmin);
 
 //	std::cout << "\n";
