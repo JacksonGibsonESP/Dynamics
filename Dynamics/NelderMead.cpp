@@ -31,13 +31,14 @@ void NelderMead(double fn(double x[]), int n, double start[], double xmin[]) {
 	// 1 initialize simplex
 	long long int seed = std::chrono::system_clock::now().time_since_epoch().count();
 	std::default_random_engine generator(seed);
-	std::normal_distribution<double> distribution(0, 1);
+	std::uniform_real_distribution<double> distribution(0.5, 2);
 	double **x = new double*[n + 1];
 	for (int i = 0; i < n + 1; i++) {
 		x[i] = new double[n];
 		for (int j = 0; j < n; j++) {
 			//x[i][j] = distribution(generator);
-			x[i][j] = start[j] + distribution(generator);
+			// x[i][j] = start[j] + distribution(generator);
+			x[i][j] = start[j] * distribution(generator);
 		}
 	}
 
@@ -52,6 +53,8 @@ void NelderMead(double fn(double x[]), int n, double start[], double xmin[]) {
 	double *x_s = new double[n];
 
 	while (variance(x, n) > 0.0000000001) {
+		delete x_c;
+		x_c = new double[n]();
 		++iteration;
 		//std::cout << iteration << " " << x[0][0] << " " << x[0][1] << " " << f(x[0]) << "\n";
 		// 2

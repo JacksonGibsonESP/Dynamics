@@ -23,37 +23,50 @@ static double parameter_tweak(double x, double g) {
 }
 
 void GRS(double fn(double x[]), int n, double start[], double xmin[]) {
-	int iteration = 0;
-	int count = 0;
-	int successes = 0;
-	double g = 0.1;
-	double *x_curr = start;
-	double *x_new = new double[n];
-	double m_curr = fn(x_curr);
-	while (iteration < 10000 && g > 0.000001) {
-		int choice = my_rand_disc(n);
-		double v_new = parameter_tweak(x_curr[choice], g);
-		memcpy(x_new, x_curr, sizeof(double) * n);
-		x_new[choice] = v_new;
-		double m_new = fn(x_new);
-		if (m_new < m_curr) {
-			double * tmp = x_new;
-			x_new = x_curr;
-			x_curr = tmp;
-			m_curr = m_new;
-			++successes;
-		}
-		if (count == 100) {
-			count = 0;
-			if (successes < 5) {
-				g /= 10;
-			}
-			successes = 0;
-		}
-		//std::cout << iteration << " " << g << " " << x_curr[0] << " " << x_curr[1] << " " << m_curr << "\n";
-		++iteration;
-		++count;
+	//memcpy(xmin, start, sizeof(double) * n);
+	for (int i = 0; i < n; i++) {
+		xmin[i] = start[i] * 2;
 	}
-	memcpy(xmin, x_curr, sizeof(double) * n);
-	//std::cout << iteration << "\n";
+	#pragma omp parallel
+	{
+		int iteration = 0;
+		int count = 0;
+		int successes = 0;
+		double g = 0.1;
+		double *x_curr = new double[n];
+		memcpy(x_curr, start, sizeof(double) * n);
+		double *x_new = new double[n];
+		double m_curr = fn(x_curr);
+		while (iteration < 1000 && g > 0.000001) {
+			int choice = my_rand_disc(n);
+			double v_new = parameter_tweak(x_curr[choice], g);
+			memcpy(x_new, x_curr, sizeof(double) * n);
+			x_new[choice] = v_new;
+			double m_new = fn(x_new);
+			if (m_new < m_curr) {
+				double * tmp = x_new;
+				x_new = x_curr;
+				x_curr = tmp;
+				m_curr = m_new;
+				++successes;
+			}
+			if (count == 100) {
+				count = 0;
+				if (successes < 5) {
+					g /= 10;
+				}
+				successes = 0;
+			}
+			//std::cout << iteration << " " << g << " " << x_curr[0] << " " << x_curr[1] << " " << m_curr << "\n";
+			++iteration;
+			++count;
+		}
+		#pragma omp critical
+		{
+			if (fn(x_curr) < fn(xmin)) {
+				memcpy(xmin, x_curr, sizeof(double) * n);
+			}
+		}
+		//std::cout << iteration << "\n";
+	}
 }
