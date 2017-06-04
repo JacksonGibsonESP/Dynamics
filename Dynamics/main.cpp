@@ -5,150 +5,11 @@
 #include <iomanip>
 #include <random>
 #include <chrono>
-#include "asa047.hpp"
 #include "annealing.h"
 #include "GRS.h"
 #include "NelderMead.h"
+#include "fitting.h"
 using namespace std;
-
-class Atom {
-public:
-	double x = 0;
-	double y = 0;
-	double z = 0;
-	bool impurity = false;
-};
-
-class RGL {
-public:
-	double A_1 = 0;
-	double A_0 = 0;
-	double s = 0;
-	double p = 0;
-	double q = 0;
-	double r0 = 0;
-};
-
-class Translation {
-public:
-	double translation[9];
-	double lattice_constant = 0;
-	double alpha = 0;
-	void make_it_pure() {
-		//x
-		translation[0] = 3 * lattice_constant;
-		translation[1] = 0;
-		translation[2] = 0;
-		//y
-		translation[3] = 0;
-		translation[4] = 3 * lattice_constant;
-		translation[5] = 0;
-		//z
-		translation[6] = 0;
-		translation[7] = 0;
-		translation[8] = 3 * lattice_constant;
-	}
-	void make_it_B() {
-		//x
-		translation[0] = 3 * lattice_constant * (1 + alpha);
-		translation[1] = 0;
-		translation[2] = 0;
-		//y
-		translation[3] = 0;
-		translation[4] = 3 * lattice_constant * (1 + alpha);
-		translation[5] = 0;
-		//z
-		translation[6] = 0;
-		translation[7] = 0;
-		translation[8] = 3 * lattice_constant * (1 + alpha);
-	}
-	void make_it_C11() {
-		//x
-		translation[0] = 3 * lattice_constant * (1 + alpha);
-		translation[1] = 0;
-		translation[2] = 0;
-		//y
-		translation[3] = 0;
-		translation[4] = 3 * lattice_constant * (1 + alpha);
-		translation[5] = 0;
-		//z
-		translation[6] = 0;
-		translation[7] = 0;
-		translation[8] = 3 * lattice_constant;
-	}
-	void make_it_C12() {
-		//x
-		translation[0] = 3 * lattice_constant * (1 + alpha);
-		translation[1] = 0;
-		translation[2] = 0;
-		//y
-		translation[3] = 0;
-		translation[4] = 3 * lattice_constant * (1 - alpha);
-		translation[5] = 0;
-		//z
-		translation[6] = 0;
-		translation[7] = 0;
-		translation[8] = 3 * lattice_constant;
-	}
-	void make_it_C44() {
-		//x
-		translation[0] = 3 * lattice_constant;
-		translation[1] = alpha * 3 * lattice_constant;
-		translation[2] = 0;
-		//y
-		translation[3] = alpha * 3 * lattice_constant;
-		translation[4] = 3 * lattice_constant;
-		translation[5] = 0;
-		//z
-		translation[6] = 0;
-		translation[7] = 0;
-		translation[8] = 3 * lattice_constant / (1 - alpha * alpha);
-	}
-};
-
-//without impurities
-vector <vector<Atom>> bulk;
-int bulk_atom_count;
-//with one impurity for E_sol
-vector <vector<Atom>> imp;
-//with dimer in surf
-vector <vector<Atom>> dim_in_surf;
-//with adatom in surf
-vector <vector<Atom>> adatom_in_surf;
-//with dimer on surf
-vector <vector<Atom>> dim_on_surf;
-//with adatom on surf
-vector <vector<Atom>> adatom_on_surf;
-
-Translation tr;
-int n_x, n_y, n_z;
-double alpha = 0.01;
-double lattice_constant;
-double cutoff;
-RGL potentials[3];
-double V_0;
-double E_full;
-double qsi = 0.8018993929636421;
-double E_coh;
-double B;
-double C11;
-double C12;
-double C44;
-double E_sol;
-double E_in_dim;
-double E_on_dim;
-
-//reference values
-double E_coh_r;
-double B_r;
-double C11_r;
-double C12_r;
-double C44_r;
-double E_sol_r;
-double E_in_dim_r;
-double E_on_dim_r;
-
-double E_coh_imp;
 
 bool toofar(Atom part, Atom part2, double cutoff) {
 	if (part.x == part2.x && part.y == part2.y && part.z == part2.z)
@@ -165,7 +26,7 @@ double full_energy(vector <vector<Atom>> &contains, int n_x, int n_y, int n_z, d
 	double bulk_size_y = translation[1] + translation[4] + translation[7];
 	double bulk_size_z = translation[2] + translation[5] + translation[8];
 
-	#pragma omp parallel for reduction(+:E_full) num_threads(3) 
+	//#pragma omp parallel for reduction(+:E_full) num_threads(3) 
 	for (int i = 0; i < n_x * n_y * n_z; ++i) {
 		for (Atom& particle : contains[i]) {
 			int atomcell_x = i % n_x;
@@ -304,7 +165,7 @@ void dump(string filename, int size, vector <vector<Atom>> &contains) {
 	out.close();
 }
 
-int convert(string filename, int n_x, int n_y, int n_z, double lattice_constant, vector <vector<Atom>> &out) {
+int convert(string filename, int n_x, int n_y, int n_z, double lattice_constant, vector <vector<Atom>> &out, int bulk_atom_count) {
 
 	out.resize(n_x * n_y * n_z);
 	vector<Atom> init;
@@ -343,145 +204,145 @@ int convert(string filename, int n_x, int n_y, int n_z, double lattice_constant,
 	return size;
 }
 
-void calc_E_coh() {
-	tr.make_it_pure();
-	E_full = full_energy(bulk, n_x, n_y, n_z, cutoff, potentials, tr.translation, false);
-	E_coh = E_full / bulk_atom_count;
+void calc_E_coh(CalcData &calcData) {
+	calcData.tr.make_it_pure();
+	calcData.E_full = full_energy(calcData.bulk, calcData.n_x, calcData.n_y, calcData.n_z, calcData.cutoff, calcData.potentials, calcData.tr.translation, false);
+	calcData.E_coh = calcData.E_full / calcData.bulk_atom_count;
 }
 
-void calc_B() {
-	vector <vector<Atom>> curr = bulk;
-	stretch(curr, n_x, n_y, n_z, alpha);
-	tr.alpha = alpha;
-	tr.make_it_B();
-	double E_full_stretched = full_energy(curr, n_x, n_y, n_z, cutoff, potentials, tr.translation, false);
-	curr = bulk;
+void calc_B(CalcData &calcData) {
+	vector <vector<Atom>> curr = calcData.bulk;
+	stretch(curr, calcData.n_x, calcData.n_y, calcData.n_z, calcData.alpha);
+	calcData.tr.alpha = calcData.alpha;
+	calcData.tr.make_it_B();
+	double E_full_stretched = full_energy(curr, calcData.n_x, calcData.n_y, calcData.n_z, calcData.cutoff, calcData.potentials, calcData.tr.translation, false);
+	curr = calcData.bulk;
 
-	stretch(curr, n_x, n_y, n_z, -alpha);
-	tr.alpha = -alpha;
-	tr.make_it_B();
-	double E_full_compressed = full_energy(curr, n_x, n_y, n_z, cutoff, potentials, tr.translation, false);
-	curr = bulk;
-	B = (2 * (E_full_stretched - 2 * E_full + E_full_compressed) * qsi) / (9 * V_0 * alpha * alpha);
+	stretch(curr, calcData.n_x, calcData.n_y, calcData.n_z, -calcData.alpha);
+	calcData.tr.alpha = -calcData.alpha;
+	calcData.tr.make_it_B();
+	double E_full_compressed = full_energy(curr, calcData.n_x, calcData.n_y, calcData.n_z, calcData.cutoff, calcData.potentials, calcData.tr.translation, false);
+	curr = calcData.bulk;
+	calcData.B = (2 * (E_full_stretched - 2 * calcData.E_full + E_full_compressed) * calcData.qsi) / (9 * calcData.V_0 * calcData.alpha * calcData.alpha);
 }
 
-void calc_C11_C12() {
-	vector <vector<Atom>> curr = bulk;
-	elastic_C11(curr, n_x, n_y, n_z, alpha);
-	tr.alpha = alpha;
-	tr.make_it_C11();
-	double E_full_stretched_C11 = full_energy(curr, n_x, n_y, n_z, cutoff, potentials, tr.translation, false);
-	curr = bulk;
+void calc_C11_C12(CalcData &calcData) {
+	vector <vector<Atom>> curr = calcData.bulk;
+	elastic_C11(curr, calcData.n_x, calcData.n_y, calcData.n_z, calcData.alpha);
+	calcData.tr.alpha = calcData.alpha;
+	calcData.tr.make_it_C11();
+	double E_full_stretched_C11 = full_energy(curr, calcData.n_x, calcData.n_y, calcData.n_z, calcData.cutoff, calcData.potentials, calcData.tr.translation, false);
+	curr = calcData.bulk;
 
-	elastic_C11(curr, n_x, n_y, n_z, -alpha);
-	tr.alpha = -alpha;
-	tr.make_it_C11();
-	double E_full_compressed_C11 = full_energy(curr, n_x, n_y, n_z, cutoff, potentials, tr.translation, false);
-	curr = bulk;
+	elastic_C11(curr, calcData.n_x, calcData.n_y, calcData.n_z, -calcData.alpha);
+	calcData.tr.alpha = -calcData.alpha;
+	calcData.tr.make_it_C11();
+	double E_full_compressed_C11 = full_energy(curr, calcData.n_x, calcData.n_y, calcData.n_z, calcData.cutoff, calcData.potentials, calcData.tr.translation, false);
+	curr = calcData.bulk;
 
-	elastic_C12(curr, n_x, n_y, n_z, alpha);
-	tr.alpha = alpha;
-	tr.make_it_C12();
-	double E_full_stretched_C12 = full_energy(curr, n_x, n_y, n_z, cutoff, potentials, tr.translation, false);
-	curr = bulk;
+	elastic_C12(curr, calcData.n_x, calcData.n_y, calcData.n_z, calcData.alpha);
+	calcData.tr.alpha = calcData.alpha;
+	calcData.tr.make_it_C12();
+	double E_full_stretched_C12 = full_energy(curr, calcData.n_x, calcData.n_y, calcData.n_z, calcData.cutoff, calcData.potentials, calcData.tr.translation, false);
+	curr = calcData.bulk;
 
-	elastic_C12(curr, n_x, n_y, n_z, -alpha);
-	tr.alpha = -alpha;
-	tr.make_it_C12();
-	double E_full_compressed_C12 = full_energy(curr, n_x, n_y, n_z, cutoff, potentials, tr.translation, false);
-	curr = bulk;
+	elastic_C12(curr, calcData.n_x, calcData.n_y, calcData.n_z, -calcData.alpha);
+	calcData.tr.alpha = -calcData.alpha;
+	calcData.tr.make_it_C12();
+	double E_full_compressed_C12 = full_energy(curr, calcData.n_x, calcData.n_y, calcData.n_z, calcData.cutoff, calcData.potentials, calcData.tr.translation, false);
+	curr = calcData.bulk;
 
-	C11 = ((E_full_stretched_C11 - 2 * E_full + E_full_compressed_C11) / (alpha * alpha) + (E_full_stretched_C12 - 2 * E_full + E_full_compressed_C12) / (alpha * alpha)) * qsi / (2 * V_0);
+	calcData.C11 = ((E_full_stretched_C11 - 2 * calcData.E_full + E_full_compressed_C11) / (calcData.alpha * calcData.alpha) + (E_full_stretched_C12 - 2 * calcData.E_full + E_full_compressed_C12) / (calcData.alpha * calcData.alpha)) *calcData.qsi / (2 * calcData.V_0);
 
-	C12 = ((E_full_stretched_C11 - 2 * E_full + E_full_compressed_C11) / (alpha * alpha) - (E_full_stretched_C12 - 2 * E_full + E_full_compressed_C12) / (alpha * alpha)) * qsi / (2 * V_0);
+	calcData.C12 = ((E_full_stretched_C11 - 2 * calcData.E_full + E_full_compressed_C11) / (calcData.alpha * calcData.alpha) - (E_full_stretched_C12 - 2 * calcData.E_full + E_full_compressed_C12) / (calcData.alpha * calcData.alpha)) * calcData.qsi / (2 * calcData.V_0);
 }
 
-void calc_C44() {
-	vector <vector<Atom>> curr = bulk;
-	elastic_C44(curr, n_x, n_y, n_z, alpha);
-	tr.alpha = alpha;
-	tr.make_it_C44();
-	double E_full_stretched_C44 = full_energy(curr, n_x, n_y, n_z, cutoff, potentials, tr.translation, false);
-	curr = bulk;
+void calc_C44(CalcData &calcData) {
+	vector <vector<Atom>> curr = calcData.bulk;
+	elastic_C44(curr, calcData.n_x, calcData.n_y, calcData.n_z, calcData.alpha);
+	calcData.tr.alpha = calcData.alpha;
+	calcData.tr.make_it_C44();
+	double E_full_stretched_C44 = full_energy(curr, calcData.n_x, calcData.n_y, calcData.n_z, calcData.cutoff, calcData.potentials, calcData.tr.translation, false);
+	curr = calcData.bulk;
 
-	elastic_C44(curr, n_x, n_y, n_z, -alpha);
-	tr.alpha = -alpha;
-	tr.make_it_C44();
-	double E_full_compressed_C44 = full_energy(curr, n_x, n_y, n_z, cutoff, potentials, tr.translation, false);
-	curr = bulk;
+	elastic_C44(curr, calcData.n_x, calcData.n_y, calcData.n_z, -calcData.alpha);
+	calcData.tr.alpha = -calcData.alpha;
+	calcData.tr.make_it_C44();
+	double E_full_compressed_C44 = full_energy(curr, calcData.n_x, calcData.n_y, calcData.n_z, calcData.cutoff, calcData.potentials, calcData.tr.translation, false);
+	curr = calcData.bulk;
 
-	C44 = ((E_full_stretched_C44 - 2 * E_full + E_full_compressed_C44)  * qsi) / (2 * V_0 * alpha * alpha);
+	calcData.C44 = ((E_full_stretched_C44 - 2 * calcData.E_full + E_full_compressed_C44)  * calcData.qsi) / (2 * calcData.V_0 * calcData.alpha * calcData.alpha);
 }
 
-void calc_E_sol() {
-	tr.make_it_pure();
-	double E_AB = full_energy(imp, n_x, n_y, n_z, cutoff, potentials, tr.translation, false);
-	double E_B = full_energy(bulk, n_x, n_y, n_z, cutoff, potentials, tr.translation, false);
-	E_sol = E_AB - E_B - E_coh_imp + E_coh;
+void calc_E_sol(CalcData &calcData) {
+	calcData.tr.make_it_pure();
+	double E_AB = full_energy(calcData.imp, calcData.n_x, calcData.n_y, calcData.n_z, calcData.cutoff, calcData.potentials, calcData.tr.translation, false);
+	double E_B = full_energy(calcData.bulk, calcData.n_x, calcData.n_y, calcData.n_z, calcData.cutoff, calcData.potentials, calcData.tr.translation, false);
+	calcData.E_sol = E_AB - E_B - calcData.E_coh_imp + calcData.E_coh;
 }
 
-void calc_E_in_dim() {
-	tr.make_it_pure();
-	double E_dim_in_surf = full_energy(dim_in_surf, n_x, n_y, n_z, cutoff, potentials, tr.translation, true);
-	double E_surf = full_energy(bulk, n_x, n_y, n_z, cutoff, potentials, tr.translation, true);
-	double E_adatom_in_surf = full_energy(adatom_in_surf, n_x, n_y, n_z, cutoff, potentials, tr.translation, true);
-	E_in_dim = (E_dim_in_surf - E_surf) - 2 * (E_adatom_in_surf - E_surf);
+void calc_E_in_dim(CalcData &calcData) {
+	calcData.tr.make_it_pure();
+	double E_dim_in_surf = full_energy(calcData.dim_in_surf, calcData.n_x, calcData.n_y, calcData.n_z, calcData.cutoff, calcData.potentials, calcData.tr.translation, true);
+	double E_surf = full_energy(calcData.bulk, calcData.n_x, calcData.n_y, calcData.n_z, calcData.cutoff, calcData.potentials, calcData.tr.translation, true);
+	double E_adatom_in_surf = full_energy(calcData.adatom_in_surf, calcData.n_x, calcData.n_y, calcData.n_z, calcData.cutoff, calcData.potentials, calcData.tr.translation, true);
+	calcData.E_in_dim = (E_dim_in_surf - E_surf) - 2 * (E_adatom_in_surf - E_surf);
 }
 
-void calc_E_on_dim() {
-	tr.make_it_pure();
-	double E_dim_on_surf = full_energy(dim_on_surf, n_x, n_y, n_z + 1, cutoff, potentials, tr.translation, true);
-	double E_surf = full_energy(bulk, n_x, n_y, n_z, cutoff, potentials, tr.translation, true);
-	double E_adatom_on_surf = full_energy(adatom_on_surf, n_x, n_y, n_z + 1, cutoff, potentials, tr.translation, true);
-	E_on_dim = (E_dim_on_surf - E_surf) - 2 * (E_adatom_on_surf - E_surf);
+void calc_E_on_dim(CalcData &calcData) {
+	calcData.tr.make_it_pure();
+	double E_dim_on_surf = full_energy(calcData.dim_on_surf, calcData.n_x, calcData.n_y, calcData.n_z + 1, calcData.cutoff, calcData.potentials, calcData.tr.translation, true);
+	double E_surf = full_energy(calcData.bulk, calcData.n_x, calcData.n_y, calcData.n_z, calcData.cutoff, calcData.potentials, calcData.tr.translation, true);
+	double E_adatom_on_surf = full_energy(calcData.adatom_on_surf, calcData.n_x, calcData.n_y, calcData.n_z + 1, calcData.cutoff, calcData.potentials, calcData.tr.translation, true);
+	calcData.E_on_dim = (E_dim_on_surf - E_surf) - 2 * (E_adatom_on_surf - E_surf);
 }
 
-double fitting_BB(double x[6]) {
-	potentials[0].A_1 = x[0];
-	potentials[0].A_0 = x[1];
-	potentials[0].s = x[2];
-	potentials[0].p = x[3];
-	potentials[0].q = x[4];
-	potentials[0].r0 = x[5];
-	calc_E_coh();
-	calc_B();
-	calc_C11_C12();
-	calc_C44();
-	std::cout << E_coh << " " << B << " " << C11 << " " << C12 << " " << C44 << '\n';
-	return sqrt(((E_coh_r - E_coh) * (E_coh_r - E_coh) / E_coh_r * E_coh_r +
-		(B_r - B) * (B_r - B) / B_r * B_r +
-		(C11_r - C11) * (C11_r - C11) / C11_r * C11_r +
-		(C12_r - C12) * (C12_r - C12) / C12_r * C12_r +
-		(C44_r - C44) * (C44_r - C44) / C44_r * C44_r) / 5.0);
+double fitting_BB(double x[6], CalcData &calcData) {
+	calcData.potentials[0].A_1 = x[0];
+	calcData.potentials[0].A_0 = x[1];
+	calcData.potentials[0].s = x[2];
+	calcData.potentials[0].p = x[3];
+	calcData.potentials[0].q = x[4];
+	calcData.potentials[0].r0 = x[5];
+	calc_E_coh(calcData);
+	calc_B(calcData);
+	calc_C11_C12(calcData);
+	calc_C44(calcData);
+	std::cout << calcData.E_coh << " " << calcData.B << " " << calcData.C11 << " " << calcData.C12 << " " << calcData.C44 << '\n';
+	return sqrt(((calcData.E_coh_r - calcData.E_coh) * (calcData.E_coh_r - calcData.E_coh) / calcData.E_coh_r * calcData.E_coh_r +
+		(calcData.B_r - calcData.B) * (calcData.B_r - calcData.B) / calcData.B_r * calcData.B_r +
+		(calcData.C11_r - calcData.C11) * (calcData.C11_r - calcData.C11) / calcData.C11_r * calcData.C11_r +
+		(calcData.C12_r - calcData.C12) * (calcData.C12_r - calcData.C12) / calcData.C12_r * calcData.C12_r +
+		(calcData.C44_r - calcData.C44) * (calcData.C44_r - calcData.C44) / calcData.C44_r * calcData.C44_r) / 5.0);
 }
 
-double fitting_AB(double x[6]) {
-	potentials[1].A_1 = x[0];
-	potentials[1].A_0 = x[1];
-	potentials[1].s = x[2];
-	potentials[1].p = x[3];
-	potentials[1].q = x[4];
-	potentials[1].r0 = x[5];
-	calc_E_sol();
-	std::cout << E_sol << "\n";
-	return sqrt((E_sol_r - E_sol) * (E_sol_r - E_sol) / E_sol_r * E_sol_r);
+double fitting_AB(double x[6], CalcData &calcData) {
+	calcData.potentials[1].A_1 = x[0];
+	calcData.potentials[1].A_0 = x[1];
+	calcData.potentials[1].s = x[2];
+	calcData.potentials[1].p = x[3];
+	calcData.potentials[1].q = x[4];
+	calcData.potentials[1].r0 = x[5];
+	calc_E_sol(calcData);
+	std::cout << calcData.E_sol << "\n";
+	return sqrt((calcData.E_sol_r - calcData.E_sol) * (calcData.E_sol_r - calcData.E_sol) / calcData.E_sol_r * calcData.E_sol_r);
 }
 
-double fitting_AA(double x[6]) {
-		potentials[2].A_1 = x[0];
-		potentials[2].A_0 = x[1];
-		potentials[2].s = x[2];
-		potentials[2].p = x[3];
-		potentials[2].q = x[4];
-		potentials[2].r0 = x[5];
-		calc_E_in_dim();
-		calc_E_on_dim();
-		std::cout << E_in_dim << " " << E_on_dim << '\n';
-		return sqrt(((E_in_dim_r - E_in_dim) * (E_in_dim_r - E_in_dim) / E_in_dim_r * E_in_dim_r +
-			(E_on_dim_r - E_on_dim) * (E_on_dim_r - E_on_dim) / E_on_dim_r * E_on_dim_r) / 2.0);
+double fitting_AA(double x[6], CalcData &calcData) {
+	calcData.potentials[2].A_1 = x[0];
+	calcData.potentials[2].A_0 = x[1];
+	calcData.potentials[2].s = x[2];
+	calcData.potentials[2].p = x[3];
+	calcData.potentials[2].q = x[4];
+	calcData.potentials[2].r0 = x[5];
+	calc_E_in_dim(calcData);
+	calc_E_on_dim(calcData);
+	std::cout << calcData.E_in_dim << " " << calcData.E_on_dim << '\n';
+	return sqrt(((calcData.E_in_dim_r - calcData.E_in_dim) * (calcData.E_in_dim_r - calcData.E_in_dim) / calcData.E_in_dim_r * calcData.E_in_dim_r +
+		(calcData.E_on_dim_r - calcData.E_on_dim) * (calcData.E_on_dim_r - calcData.E_on_dim) / calcData.E_on_dim_r * calcData.E_on_dim_r) / 2.0);
 }
 
-void print_potentials(RGL potentials[3]) {
+void print_potentials(RGL potentials[3], CalcData &calcData) {
 	ofstream fout("BB.txt", ofstream::out);
 
 	if (!fout.is_open()) {
@@ -493,7 +354,7 @@ void print_potentials(RGL potentials[3]) {
 	double x[size];
 	double y[size];
 
-	double step = lattice_constant / 100.0;
+	double step = calcData.lattice_constant / 100.0;
 	double curr_x = 1.6;
 
 	for (int i = 0; i < size; ++i) {
@@ -570,10 +431,12 @@ int main(int argc, char* argv[]) {
 		return 0;
 	}
 
+	CalcData calcData;
+
 	//cell size
-	n_x = 3;
-	n_y = 3;
-	n_z = 3;
+	calcData.n_x = 3;
+	calcData.n_y = 3;
+	calcData.n_z = 3;
 
 	ifstream fin(argv[7], ifstream::in);
 
@@ -584,48 +447,38 @@ int main(int argc, char* argv[]) {
 
 	string dumb;
 	getline(fin, dumb);
-	fin >> E_coh_r;
-	fin >> B_r;
-	fin >> C11_r;
-	fin >> C12_r;
-	fin >> C44_r;
-	fin >> E_sol_r;
-	fin >> E_in_dim_r;
-	fin >> E_on_dim_r;
-	fin >> E_coh_imp;
-	fin >> lattice_constant;
+	fin >> calcData.E_coh_r;
+	fin >> calcData.B_r;
+	fin >> calcData.C11_r;
+	fin >> calcData.C12_r;
+	fin >> calcData.C44_r;
+	fin >> calcData.E_sol_r;
+	fin >> calcData.E_in_dim_r;
+	fin >> calcData.E_on_dim_r;
+	fin >> calcData.E_coh_imp;
+	fin >> calcData.lattice_constant;
 
-	cutoff = 1.7 * lattice_constant;
+	calcData.cutoff = 1.7 * calcData.lattice_constant;
 
-	bulk_atom_count = convert(argv[1], n_x, n_y, n_z, lattice_constant, bulk);
-	convert(argv[2], n_x, n_y, n_z, lattice_constant, imp);
-	convert(argv[3], n_x, n_y, n_z, lattice_constant, dim_in_surf);
-	convert(argv[4], n_x, n_y, n_z, lattice_constant, adatom_in_surf);
-	convert(argv[5], n_x, n_y, n_z, lattice_constant, dim_on_surf);
-	convert(argv[6], n_x, n_y, n_z, lattice_constant, adatom_on_surf);
+	calcData.bulk_atom_count = convert(argv[1], calcData.n_x, calcData.n_y, calcData.n_z, calcData.lattice_constant, calcData.bulk, calcData.bulk_atom_count);
+	convert(argv[2], calcData.n_x, calcData.n_y, calcData.n_z, calcData.lattice_constant, calcData.imp, calcData.bulk_atom_count);
+	convert(argv[3], calcData.n_x, calcData.n_y, calcData.n_z, calcData.lattice_constant, calcData.dim_in_surf, calcData.bulk_atom_count);
+	convert(argv[4], calcData.n_x, calcData.n_y, calcData.n_z, calcData.lattice_constant, calcData.adatom_in_surf, calcData.bulk_atom_count);
+	convert(argv[5], calcData.n_x, calcData.n_y, calcData.n_z, calcData.lattice_constant, calcData.dim_on_surf, calcData.bulk_atom_count);
+	convert(argv[6], calcData.n_x, calcData.n_y, calcData.n_z, calcData.lattice_constant, calcData.adatom_on_surf, calcData.bulk_atom_count);
 
-	tr.lattice_constant = lattice_constant;
-	tr.alpha = alpha;
-	V_0 = lattice_constant * lattice_constant * lattice_constant * n_x * n_y * n_z;
+	calcData.tr.lattice_constant = calcData.lattice_constant;
+	calcData.tr.alpha = calcData.alpha;
+	calcData.V_0 = calcData.lattice_constant * calcData.lattice_constant * calcData.lattice_constant * calcData.n_x * calcData.n_y * calcData.n_z;
 
 	auto start_time = chrono::high_resolution_clock::now();
 
-	int icount;
-	int ifault;
-	int kcount;
-	int konvge;
-	int n;
-	int numres;
-	double reqmin;
+	int n = 6;
 	double *start;
-	double *step;
 	double *xmin;
 	double ynewlo;
 
-	n = 6;
-
 	start = new double[n];
-	step = new double[n];
 	xmin = new double[n];
 	///////////////////////////////////////////////////////
 	std::cout << "\n";
@@ -637,52 +490,38 @@ int main(int argc, char* argv[]) {
 	start[2] = 1.178;
 	start[3] = 10.928;
 	start[4] = 3.139;
-	start[5] = lattice_constant / sqrt(2);
-
-	reqmin = 1.0E-08;
-
-	step[0] = 1.0;
-	step[1] = 1.0;
-	step[2] = 1.0;
-	step[3] = 1.0;
-	step[4] = 1.0;
-	step[5] = 1.0;
-
-	konvge = 10;
-	kcount = 500;
+	start[5] = calcData.lattice_constant / sqrt(2);
 
 	std::cout << "\n";
 	std::cout << "  Starting point X:\n";
 	std::cout << "\n";
+
 	for (int i = 0; i < n; i++)
 	{
 		std::cout << "  " << setw(14) << start[i] << "\n";
 	}
 
-	ynewlo = fitting_BB(start);
+	ynewlo = fitting_BB(start, calcData);
 
 	std::cout << "\n";
 	std::cout << "  F(X) = " << ynewlo << "\n";
+	std::cout << "\n";
 
-/*	nelmin(fitting_BB, n, start, xmin, &ynewlo, reqmin, step,
-		konvge, kcount, &icount, &numres, &ifault);*/
-
-/*	annealing(fitting_BB, n, start, xmin);
+	/*	annealing(fitting_BB, n, start, xmin);
 	ynewlo = fitting_BB(xmin);*/
 
 	//*
-	GRS(fitting_BB, n, start, xmin);
-	ynewlo = fitting_BB(xmin);
+	GRS(fitting_BB, n, start, xmin, calcData);
+	ynewlo = fitting_BB(xmin, calcData);
 	/*/
 	NelderMead(fitting_BB, n, start, xmin);
 	ynewlo = fitting_BB(xmin);
 	//*/
 
-//	std::cout << "\n";
-//	std::cout << "  Return code IFAULT = " << ifault << "\n";
-//	std::cout << "\n";
+	std::cout << "\n";
 	std::cout << "  Estimate of minimizing value X*:\n";
 	std::cout << "\n";
+
 	for (int i = 0; i < n; i++)
 	{
 		std::cout << "  " << setw(14) << xmin[i] << "\n";
@@ -690,21 +529,14 @@ int main(int argc, char* argv[]) {
 
 	std::cout << "\n";
 	std::cout << "  F(X*) = " << ynewlo << "\n";
-
 	std::cout << "\n";
-	/*std::cout << "  Number of iterations = " << icount << "\n";
-	std::cout << "  Number of restarts =   " << numres << "\n";
-	
-	if (ifault != 0) {
-		return 0;
-	}*/
 
-	potentials[0].A_1 = xmin[0];
-	potentials[0].A_0 = xmin[1];
-	potentials[0].s = xmin[2];
-	potentials[0].p = xmin[3];
-	potentials[0].q = xmin[4];
-	potentials[0].r0 = xmin[5];
+	calcData.potentials[0].A_1 = xmin[0];
+	calcData.potentials[0].A_0 = xmin[1];
+	calcData.potentials[0].s = xmin[2];
+	calcData.potentials[0].p = xmin[3];
+	calcData.potentials[0].q = xmin[4];
+	calcData.potentials[0].r0 = xmin[5];
 	///////////////////////////////////////////////////////
 	std::cout << "\n";
 	std::cout << "AB fitting:\n";
@@ -717,18 +549,6 @@ int main(int argc, char* argv[]) {
 	start[4] = 1.189;
 	start[5] = 3.523 / sqrt(2);
 
-	reqmin = 1.0E-08;
-
-	step[0] = 0.1;
-	step[1] = 0.1;
-	step[2] = 0.1;
-	step[3] = 0.1;
-	step[4] = 0.1;
-	step[5] = 0.1;
-
-	konvge = 10;
-	kcount = 500;
-
 	std::cout << "\n";
 	std::cout << "  Starting point X:\n";
 	std::cout << "\n";
@@ -737,19 +557,18 @@ int main(int argc, char* argv[]) {
 		std::cout << "  " << setw(14) << start[i] << "\n";
 	}
 
-	ynewlo = fitting_AB(start);
+	ynewlo = fitting_AB(start, calcData);
 
 	std::cout << "\n";
 	std::cout << "  F(X) = " << ynewlo << "\n";
-
-	nelmin(fitting_AB, n, start, xmin, &ynewlo, reqmin, step,
-		konvge, kcount, &icount, &numres, &ifault);
-
 	std::cout << "\n";
-	std::cout << "  Return code IFAULT = " << ifault << "\n";
+
+	GRS(fitting_AB, n, start, xmin, calcData);
+		
 	std::cout << "\n";
 	std::cout << "  Estimate of minimizing value X*:\n";
 	std::cout << "\n";
+
 	for (int i = 0; i < n; i++)
 	{
 		std::cout << "  " << setw(14) << xmin[i] << "\n";
@@ -757,21 +576,14 @@ int main(int argc, char* argv[]) {
 
 	std::cout << "\n";
 	std::cout << "  F(X*) = " << ynewlo << "\n";
-
 	std::cout << "\n";
-	std::cout << "  Number of iterations = " << icount << "\n";
-	std::cout << "  Number of restarts =   " << numres << "\n";
 
-	if (ifault != 0) {
-		//return 0;
-	}
-
-	potentials[1].A_1 = xmin[0];
-	potentials[1].A_0 = xmin[1];
-	potentials[1].s = xmin[2];
-	potentials[1].p = xmin[3];
-	potentials[1].q = xmin[4];
-	potentials[1].r0 = xmin[5];
+	calcData.potentials[1].A_1 = xmin[0];
+	calcData.potentials[1].A_0 = xmin[1];
+	calcData.potentials[1].s = xmin[2];
+	calcData.potentials[1].p = xmin[3];
+	calcData.potentials[1].q = xmin[4];
+	calcData.potentials[1].r0 = xmin[5];
 	///////////////////////////////////////////////////////
 	std::cout << "\n";
 	std::cout << "AA fitting:\n";
@@ -784,36 +596,22 @@ int main(int argc, char* argv[]) {
 	start[4] = 1.189;
 	start[5] = 3.523 / sqrt(2);
 
-	reqmin = 1.0E-08;
-
-	step[0] = 1.0;
-	step[1] = 1.0;
-	step[2] = 1.0;
-	step[3] = 0.1;
-	step[4] = 1.0;
-	step[5] = 1.0;
-
-	konvge = 10;
-	kcount = 500;
-
 	std::cout << "\n";
 	std::cout << "  Starting point X:\n";
 	std::cout << "\n";
+
 	for (int i = 0; i < n; i++)
 	{
 		std::cout << "  " << setw(14) << start[i] << "\n";
 	}
 
-	ynewlo = fitting_AA(start);
+	ynewlo = fitting_AA(start, calcData);
 
 	std::cout << "\n";
 	std::cout << "  F(X) = " << ynewlo << "\n";
 
-	nelmin(fitting_AA, n, start, xmin, &ynewlo, reqmin, step,
-		konvge, kcount, &icount, &numres, &ifault);
+	GRS(fitting_AA, n, start, xmin, calcData);
 
-	std::cout << "\n";
-	std::cout << "  Return code IFAULT = " << ifault << "\n";
 	std::cout << "\n";
 	std::cout << "  Estimate of minimizing value X*:\n";
 	std::cout << "\n";
@@ -826,51 +624,45 @@ int main(int argc, char* argv[]) {
 	std::cout << "  F(X*) = " << ynewlo << "\n";
 
 	std::cout << "\n";
-	std::cout << "  Number of iterations = " << icount << "\n";
-	std::cout << "  Number of restarts =   " << numres << "\n";
 
-	if (ifault != 0) {
-		//return 0;
-	}
-
-	potentials[2].A_1 = xmin[0];
-	potentials[2].A_0 = xmin[1];
-	potentials[2].s = xmin[2];
-	potentials[2].p = xmin[3];
-	potentials[2].q = xmin[4];
-	potentials[2].r0 = xmin[5];
+	calcData.potentials[2].A_1 = xmin[0];
+	calcData.potentials[2].A_0 = xmin[1];
+	calcData.potentials[2].s = xmin[2];
+	calcData.potentials[2].p = xmin[3];
+	calcData.potentials[2].q = xmin[4];
+	calcData.potentials[2].r0 = xmin[5];
 
 	delete[] start;
-	delete[] step;
 	delete[] xmin;
 
 	std::cout << "\nB-B potential:\n" <<
-		"A1 = " << potentials[0].A_1 << '\n' <<
-		"A0 = " << potentials[0].A_0 << '\n' <<
-		"s = " << potentials[0].s << '\n' <<
-		"p = " << potentials[0].p << '\n' <<
-		"q = " << potentials[0].q << '\n' <<
-		"r0 = " << potentials[0].r0 << '\n';
+		"A1 = " << calcData.potentials[0].A_1 << '\n' <<
+		"A0 = " << calcData.potentials[0].A_0 << '\n' <<
+		"s = " << calcData.potentials[0].s << '\n' <<
+		"p = " << calcData.potentials[0].p << '\n' <<
+		"q = " << calcData.potentials[0].q << '\n' <<
+		"r0 = " << calcData.potentials[0].r0 << '\n';
 
 	std::cout << "\nA-B potential:\n" <<
-		"A1 = " << potentials[1].A_1 << '\n' <<
-		"A0 = " << potentials[1].A_0 << '\n' <<
-		"s = " << potentials[1].s << '\n' <<
-		"p = " << potentials[1].p << '\n' <<
-		"q = " << potentials[1].q << '\n' <<
-		"r0 = " << potentials[1].r0 << '\n';
+		"A1 = " << calcData.potentials[1].A_1 << '\n' <<
+		"A0 = " << calcData.potentials[1].A_0 << '\n' <<
+		"s = " << calcData.potentials[1].s << '\n' <<
+		"p = " << calcData.potentials[1].p << '\n' <<
+		"q = " << calcData.potentials[1].q << '\n' <<
+		"r0 = " << calcData.potentials[1].r0 << '\n';
 
 	std::cout << "\nA-A potential:\n" <<
-		"A1 = " << potentials[2].A_1 << '\n' <<
-		"A0 = " << potentials[2].A_0 << '\n' <<
-		"s = " << potentials[2].s << '\n' <<
-		"p = " << potentials[2].p << '\n' <<
-		"q = " << potentials[2].q << '\n' <<
-		"r0 = " << potentials[2].r0 << '\n';
+		"A1 = " << calcData.potentials[2].A_1 << '\n' <<
+		"A0 = " << calcData.potentials[2].A_0 << '\n' <<
+		"s = " << calcData.potentials[2].s << '\n' <<
+		"p = " << calcData.potentials[2].p << '\n' <<
+		"q = " << calcData.potentials[2].q << '\n' <<
+		"r0 = " << calcData.potentials[2].r0 << '\n';
 
-	print_potentials(potentials);
+	print_potentials(calcData.potentials, calcData);
 
 	auto end_time = chrono::high_resolution_clock::now();
 	std::cout << '\n' << chrono::duration_cast<chrono::milliseconds>(end_time - start_time).count() << " ms\n";
+	system("pause");
 	return 0;
 }
