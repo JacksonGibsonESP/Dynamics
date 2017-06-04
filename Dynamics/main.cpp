@@ -424,6 +424,173 @@ void print_potentials(RGL potentials[3], CalcData &calcData) {
 	fout.close();
 }
 
+/*const double D = 933;//eV
+const double a = 4.085 / sqrt(2);*/
+
+void calc(vector <vector<Atom>> &contains, int n_x, int n_y, int n_z, double cutoff, RGL potentials[3], double translation[9], bool surface) {
+
+	double bulk_size_x = translation[0] + translation[3] + translation[6];
+	double bulk_size_y = translation[1] + translation[4] + translation[7];
+	double bulk_size_z = translation[2] + translation[5] + translation[8];
+
+	//#pragma omp parallel for reduction(+:E_full) num_threads(3) 
+	for (int i = 0; i < n_x * n_y * n_z; ++i) {
+		for (Atom& particle : contains[i]) {
+			int atomcell_x = i % n_x;
+			int atomcell_y = i / n_x % n_y;
+			int atomcell_z = i / (n_x * n_y);
+			double E_b_temp = 0;
+			double E_b_x_temp = 0;
+			double E_b_y_temp = 0;
+			double E_b_z_temp = 0;
+			double E_r_x_temp = 0;
+			double E_r_y_temp = 0;
+			double E_r_z_temp = 0;
+			for (int dx = -1; dx <= 1; ++dx) {
+				for (int dy = -1; dy <= 1; ++dy) {
+					for (int dz = -1; dz <= 1; ++dz) {
+						for (Atom particle2 : contains[
+							(atomcell_x + n_x + dx) % n_x +
+								(atomcell_y + n_y + dy) % n_y * n_x +
+								(atomcell_z + n_z + dz) % n_z * n_y * n_x]) {
+							//check for translation
+							if (abs(particle2.x - particle.x) > bulk_size_x / 2) { //more than one cell far
+								if (particle2.x > particle.x) { //move to neighbor cell
+									particle2.x -= translation[0];
+									particle2.y -= translation[1];
+									particle2.z -= translation[2];
+								}
+								else {
+									particle2.x += translation[0];
+									particle2.y += translation[1];
+									particle2.z += translation[2];
+								}
+							}
+							if (abs(particle2.y - particle.y) > bulk_size_y / 2) { //more than one cell far
+								if (particle2.y > particle.y) { //move to neighbor cell
+									particle2.x -= translation[3];
+									particle2.y -= translation[4];
+									particle2.z -= translation[5];
+								}
+								else {
+									particle2.x += translation[3];
+									particle2.y += translation[4];
+									particle2.z += translation[5];
+								}
+							}
+							if (!surface) {
+								if (abs(particle2.z - particle.z) > bulk_size_z / 2) { //more than one cell far
+									if (particle2.z > particle.z) { //move to neighbor cell
+										particle2.x -= translation[6];
+										particle2.y -= translation[7];
+										particle2.z -= translation[8];
+									}
+									else {
+										particle2.x += translation[6];
+										particle2.y += translation[7];
+										particle2.z += translation[8];
+									}
+								}
+							}
+							if (toofar(particle, particle2, cutoff)) {
+								continue;
+							}
+
+							int choice = 0;
+							if (particle.impurity && particle2.impurity) {
+								choice = 2; //A-A
+							}
+							else if (!particle.impurity && !particle2.impurity) {
+								choice = 0; //B-B
+							}
+							else {
+								choice = 1; //A-B
+							}
+
+							//distance
+							double r_norm = sqrt((particle2.x - particle.x) * (particle2.x - particle.x)
+								+ (particle2.y - particle.y) * (particle2.y - particle.y)
+								+ (particle2.z - particle.z) * (particle2.z - particle.z));
+
+							double r = r_norm;
+
+							double dx = abs(particle2.x - particle.x);
+							double dy = abs(particle2.y - particle.y);
+							double dz = abs(particle2.z - particle.z);
+
+							//repulsive and bond energies
+							E_b_temp += potentials[choice].s * potentials[choice].s
+								* exp(-2 * potentials[choice].q * (r / potentials[choice].r0 - 1));
+
+							E_b_x_temp += (-2 * potentials[choice].s * potentials[choice].s * potentials[choice].q 
+								* exp(potentials[choice].q * (2 - 2 * r / potentials[choice].r0)))
+								/ potentials[choice].r0 * (dx / r_norm);
+
+							E_b_y_temp += (-2 * potentials[choice].s * potentials[choice].s * potentials[choice].q 
+								* exp(potentials[choice].q * (2 - 2 * r / potentials[choice].r0)))
+								/ potentials[choice].r0 * (dy / r_norm);
+
+							E_b_z_temp += (-2 * potentials[choice].s * potentials[choice].s * potentials[choice].q 
+								* exp(potentials[choice].q * (2 - 2 * r / potentials[choice].r0)))
+								/ potentials[choice].r0 * (dz / r_norm);
+
+							E_r_x_temp += (potentials[choice].A_1 * exp(-potentials[choice].p * (r / potentials[choice].r0 - 1))
+								- (potentials[choice].p * exp(-potentials[choice].p * (r / potentials[choice].r0 - 1))
+								* (potentials[choice].A_0 + potentials[choice].A_1 * (r - potentials[choice].r0))) / potentials[choice].r0) * (dx / r_norm);
+
+							E_r_y_temp += (potentials[choice].A_1 * exp(-potentials[choice].p * (r / potentials[choice].r0 - 1))
+								- (potentials[choice].p * exp(-potentials[choice].p * (r / potentials[choice].r0 - 1))
+									* (potentials[choice].A_0 + potentials[choice].A_1 * (r - potentials[choice].r0))) / potentials[choice].r0) * (dy / r_norm);
+
+							E_r_z_temp += (potentials[choice].A_1 * exp(-potentials[choice].p * (r / potentials[choice].r0 - 1))
+								- (potentials[choice].p * exp(-potentials[choice].p * (r / potentials[choice].r0 - 1))
+									* (potentials[choice].A_0 + potentials[choice].A_1 * (r - potentials[choice].r0))) / potentials[choice].r0) * (dz / r_norm);
+
+							/*double F = 12 * D / a * (pow(a / r, 13) - pow(a / r, 7));
+
+							double dir_x = particle2.x - particle.x;
+							double dir_y = particle2.y - particle.y;
+							double dir_z = particle2.z - particle.z;
+							double len = sqrt(dir_x * dir_x + dir_y * dir_y + dir_z * dir_z);
+							dir_x /= len;
+							dir_y /= len;
+							dir_z /= len;
+							dir_x *= F;
+							dir_y *= F;
+							dir_z *= F;
+
+							particle.f_x -= dir_x;
+							particle.f_y -= dir_y;
+							particle.f_z -= dir_z;*/
+
+						}
+					}
+				}
+			}
+			particle.f_x = -E_r_x_temp + 0.5 * 1 / sqrt(E_b_temp) * E_b_x_temp;
+			particle.f_y = -E_r_y_temp + 0.5 * 1 / sqrt(E_b_temp) * E_b_y_temp;
+			particle.f_z = -E_r_z_temp + 0.5 * 1 / sqrt(E_b_temp) * E_b_z_temp;
+		}
+	}
+}
+
+void dump(string filename, vector <vector<Atom>> &contains) {
+	ofstream out(filename);
+	unsigned int size = 0;
+	for (unsigned int i = 0; i < contains.size(); ++i) {
+		size += contains[i].size();
+	}
+	out << size << '\n';
+	out << "one frame of relaxation\n";
+	for (unsigned int i = 0; i < contains.size(); ++i) {
+		for (unsigned int j = 0; j < contains[i].size(); ++j) {
+			//out << setw(15) << contains[i][j].x << setw(15) << contains[i][j].y << setw(15) << contains[i][j].z << '\n';
+			out << contains[i][j].x << ' ' << contains[i][j].y << ' ' << contains[i][j].z << '\n';
+		}
+	}
+	out.close();
+}
+
 int main(int argc, char* argv[]) {
 
 	if (argc != 8) {
@@ -471,7 +638,7 @@ int main(int argc, char* argv[]) {
 	calcData.tr.alpha = calcData.alpha;
 	calcData.V_0 = calcData.lattice_constant * calcData.lattice_constant * calcData.lattice_constant * calcData.n_x * calcData.n_y * calcData.n_z;
 
-	auto start_time = chrono::high_resolution_clock::now();
+	/*auto start_time = chrono::high_resolution_clock::now();
 
 	int n = 6;
 	double *start;
@@ -511,14 +678,14 @@ int main(int argc, char* argv[]) {
 	ynewlo = fitting_BB(xmin);*/
 
 	//*
-	GRS(fitting_BB, n, start, xmin, calcData);
+	/*GRS(fitting_BB, n, start, xmin, calcData);
 	ynewlo = fitting_BB(xmin, calcData);
 	/*/
-	NelderMead(fitting_BB, n, start, xmin);
+	/*NelderMead(fitting_BB, n, start, xmin);
 	ynewlo = fitting_BB(xmin);
 	//*/
 
-	std::cout << "\n";
+	/*std::cout << "\n";
 	std::cout << "  Estimate of minimizing value X*:\n";
 	std::cout << "\n";
 
@@ -563,7 +730,7 @@ int main(int argc, char* argv[]) {
 	std::cout << "  F(X) = " << ynewlo << "\n";
 	std::cout << "\n";
 
-	GRS(fitting_AB, n, start, xmin, calcData);
+	//GRS(fitting_AB, n, start, xmin, calcData);
 		
 	std::cout << "\n";
 	std::cout << "  Estimate of minimizing value X*:\n";
@@ -610,7 +777,7 @@ int main(int argc, char* argv[]) {
 	std::cout << "\n";
 	std::cout << "  F(X) = " << ynewlo << "\n";
 
-	GRS(fitting_AA, n, start, xmin, calcData);
+	//GRS(fitting_AA, n, start, xmin, calcData);
 
 	std::cout << "\n";
 	std::cout << "  Estimate of minimizing value X*:\n";
@@ -634,7 +801,7 @@ int main(int argc, char* argv[]) {
 
 	delete[] start;
 	delete[] xmin;
-
+	
 	std::cout << "\nB-B potential:\n" <<
 		"A1 = " << calcData.potentials[0].A_1 << '\n' <<
 		"A0 = " << calcData.potentials[0].A_0 << '\n' <<
@@ -662,7 +829,77 @@ int main(int argc, char* argv[]) {
 	print_potentials(calcData.potentials, calcData);
 
 	auto end_time = chrono::high_resolution_clock::now();
+	
+
 	std::cout << '\n' << chrono::duration_cast<chrono::milliseconds>(end_time - start_time).count() << " ms\n";
+	*/
+	//B-B potential:
+	calcData.potentials[0].A_1 = 0;
+	calcData.potentials[0].A_0 = 0.1028;
+	calcData.potentials[0].s = 1.178;
+	calcData.potentials[0].p = 10.928;
+	calcData.potentials[0].q = 3.14603;
+	calcData.potentials[0].r0 = 2.88853;
+
+	//A-B potential:
+	calcData.potentials[1].A_1 = 0;
+	calcData.potentials[1].A_0 = 0.042866;
+	calcData.potentials[1].s = 0.990775;
+	calcData.potentials[1].p = 16.3642;
+	calcData.potentials[1].q = 1.189;
+	calcData.potentials[1].r0 = 2.45985;
+
+	//A-A potential:
+	calcData.potentials[2].A_1 = 0;
+	calcData.potentials[2].A_0 = 0.0377356;
+	calcData.potentials[2].s = 1.07419;
+	calcData.potentials[2].p = 17.214;
+	calcData.potentials[2].q = 1.42031;
+	calcData.potentials[2].r0 = 3.04121;
+
+	calcData.tr.make_it_pure();
+	//calc(calcData.bulk, calcData.n_x, calcData.n_y, calcData.n_z, calcData.cutoff, calcData.potentials, calcData.tr.translation, false);
+
+	vector <vector<Atom>> prev = calcData.bulk;
+	vector <vector<Atom>> curr = calcData.bulk;
+	//calculate prev forces
+	calc(prev, calcData.n_x, calcData.n_y, calcData.n_z, calcData.cutoff, calcData.potentials, calcData.tr.translation, false);
+	//dump iteration
+	cout << "frame_0.txt\n";
+	dump("frame_0.txt", curr);
+	
+	int iterations_count;
+	cout << "iterations count: ";
+	cin >> iterations_count;
+	double dt;
+	cout << "dt: ";
+	cin >> dt;
+	for (int it_cnt = 0; it_cnt < iterations_count; ++it_cnt) {
+		//count positions
+		for (int i = 0; i < prev.size(); ++i) {
+			for (unsigned int j = 0; j < prev[i].size(); ++j) {
+				curr[i][j].x = prev[i][j].x + prev[i][j].v_x * dt + prev[i][j].f_x * dt * dt / (2 * curr[i][j].mass);
+				curr[i][j].y = prev[i][j].y + prev[i][j].v_y * dt + prev[i][j].f_y * dt * dt / (2 * curr[i][j].mass);
+				curr[i][j].z = prev[i][j].z + prev[i][j].v_z * dt + prev[i][j].f_z * dt * dt / (2 * curr[i][j].mass);
+			}
+		}
+		//calculate
+		calc(curr, calcData.n_x, calcData.n_y, calcData.n_z, calcData.cutoff, calcData.potentials, calcData.tr.translation, false);
+		//count velocities
+		for (int i = 0; i < curr.size(); ++i) {
+			for (unsigned int j = 0; j < curr[i].size(); ++j) {
+				curr[i][j].v_x = prev[i][j].v_x + (prev[i][j].f_x + curr[i][j].f_x) / (2 * curr[i][j].mass) * dt;
+				curr[i][j].v_y = prev[i][j].v_y + (prev[i][j].f_y + curr[i][j].f_y) / (2 * curr[i][j].mass) * dt;
+				curr[i][j].v_z = prev[i][j].v_z + (prev[i][j].f_z + curr[i][j].f_z) / (2 * curr[i][j].mass) * dt;
+			}
+		}
+		//dump iteration
+		cout << "frame_" << it_cnt + 1 << ".txt\n";
+		dump("frame_" + to_string(it_cnt + 1) + ".txt", curr);
+		//swap
+		prev.swap(curr);
+	}
+	
 	system("pause");
 	return 0;
 }

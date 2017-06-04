@@ -6,6 +6,13 @@ public:
 	double x = 0;
 	double y = 0;
 	double z = 0;
+	double f_x = 0;
+	double f_y = 0;
+	double f_z = 0;
+	double v_x = 0;
+	double v_y = 0;
+	double v_z = 0;
+	double mass = 107.8682;
 	bool impurity = false;
 };
 
