@@ -439,13 +439,13 @@ void calc(vector <vector<Atom>> &contains, int n_x, int n_y, int n_z, double cut
 			int atomcell_x = i % n_x;
 			int atomcell_y = i / n_x % n_y;
 			int atomcell_z = i / (n_x * n_y);
-			double E_b_temp = 0;
-			double E_b_x_temp = 0;
-			double E_b_y_temp = 0;
-			double E_b_z_temp = 0;
-			double E_r_x_temp = 0;
-			double E_r_y_temp = 0;
-			double E_r_z_temp = 0;
+			double Eb = 0;
+			double dEb_dx = 0;
+			double dEb_dy = 0;
+			double dEb_dz = 0;
+			double dEr_dx = 0;
+			double dEr_dy = 0;
+			double dEr_dz = 0;
 			for (int dx = -1; dx <= 1; ++dx) {
 				for (int dy = -1; dy <= 1; ++dy) {
 					for (int dz = -1; dz <= 1; ++dz) {
@@ -508,68 +508,39 @@ void calc(vector <vector<Atom>> &contains, int n_x, int n_y, int n_z, double cut
 							}
 
 							//distance
-							double r_norm = sqrt((particle2.x - particle.x) * (particle2.x - particle.x)
+							double r = sqrt((particle2.x - particle.x) * (particle2.x - particle.x)
 								+ (particle2.y - particle.y) * (particle2.y - particle.y)
 								+ (particle2.z - particle.z) * (particle2.z - particle.z));
 
-							double r = r_norm;
-
-							double dx = abs(particle2.x - particle.x);
-							double dy = abs(particle2.y - particle.y);
-							double dz = abs(particle2.z - particle.z);
-
 							//repulsive and bond energies
-							E_b_temp += potentials[choice].s * potentials[choice].s
-								* exp(-2 * potentials[choice].q * (r / potentials[choice].r0 - 1));
+							double tmp1 = potentials[choice].s * potentials[choice].s * exp(-2. * potentials[choice].q * (r / potentials[choice].r0 - 1));
+							double tmp2 = potentials[choice].q / (potentials[choice].r0 * r);
+							dEb_dx += tmp1 * tmp2 * (particle.x - particle2.x);
+							dEb_dy += tmp1 * tmp2 * (particle.y - particle2.y);
+							dEb_dz += tmp1 * tmp2 * (particle.z - particle2.z);
 
-							E_b_x_temp += (-2 * potentials[choice].s * potentials[choice].s * potentials[choice].q 
-								* exp(potentials[choice].q * (2 - 2 * r / potentials[choice].r0)))
-								/ potentials[choice].r0 * (dx / r_norm);
+							Eb += tmp1;
 
-							E_b_y_temp += (-2 * potentials[choice].s * potentials[choice].s * potentials[choice].q 
-								* exp(potentials[choice].q * (2 - 2 * r / potentials[choice].r0)))
-								/ potentials[choice].r0 * (dy / r_norm);
+							tmp1 = exp(-potentials[choice].p * (r / potentials[choice].r0 - 1)) * (potentials[choice].A_1
+								* (1. / r + (-potentials[choice].r0 + r) * (-potentials[choice].p / (potentials[choice].r0 * r)))
+								+ potentials[choice].A_0 * (-potentials[choice].p / (potentials[choice].r0 * r)));
 
-							E_b_z_temp += (-2 * potentials[choice].s * potentials[choice].s * potentials[choice].q 
-								* exp(potentials[choice].q * (2 - 2 * r / potentials[choice].r0)))
-								/ potentials[choice].r0 * (dz / r_norm);
+							dEr_dx += tmp1 * (particle.x - particle2.x);
 
-							E_r_x_temp += (potentials[choice].A_1 * exp(-potentials[choice].p * (r / potentials[choice].r0 - 1))
-								- (potentials[choice].p * exp(-potentials[choice].p * (r / potentials[choice].r0 - 1))
-								* (potentials[choice].A_0 + potentials[choice].A_1 * (r - potentials[choice].r0))) / potentials[choice].r0) * (dx / r_norm);
+							dEr_dy += tmp1 * (particle.y - particle2.y);
 
-							E_r_y_temp += (potentials[choice].A_1 * exp(-potentials[choice].p * (r / potentials[choice].r0 - 1))
-								- (potentials[choice].p * exp(-potentials[choice].p * (r / potentials[choice].r0 - 1))
-									* (potentials[choice].A_0 + potentials[choice].A_1 * (r - potentials[choice].r0))) / potentials[choice].r0) * (dy / r_norm);
-
-							E_r_z_temp += (potentials[choice].A_1 * exp(-potentials[choice].p * (r / potentials[choice].r0 - 1))
-								- (potentials[choice].p * exp(-potentials[choice].p * (r / potentials[choice].r0 - 1))
-									* (potentials[choice].A_0 + potentials[choice].A_1 * (r - potentials[choice].r0))) / potentials[choice].r0) * (dz / r_norm);
-
-							/*double F = 12 * D / a * (pow(a / r, 13) - pow(a / r, 7));
-
-							double dir_x = particle2.x - particle.x;
-							double dir_y = particle2.y - particle.y;
-							double dir_z = particle2.z - particle.z;
-							double len = sqrt(dir_x * dir_x + dir_y * dir_y + dir_z * dir_z);
-							dir_x /= len;
-							dir_y /= len;
-							dir_z /= len;
-							dir_x *= F;
-							dir_y *= F;
-							dir_z *= F;
-
-							particle.f_x -= dir_x;
-							particle.f_y -= dir_y;
-							particle.f_z -= dir_z;*/
-
+							dEr_dz += tmp1 * (particle.z - particle2.z);
 						}
 					}
 				}
 			}
-			particle.f_x = -E_r_x_temp + 0.5 * 1 / sqrt(E_b_temp) * E_b_x_temp;
-			particle.f_y = -E_r_y_temp + 0.5 * 1 / sqrt(E_b_temp) * E_b_y_temp;
-			particle.f_z = -E_r_z_temp + 0.5 * 1 / sqrt(E_b_temp) * E_b_z_temp;
+			Eb = sqrt(Eb);
+			dEb_dx /= Eb;
+			dEb_dy /= Eb;
+			dEb_dz /= Eb;
+			particle.f_x = -dEr_dx - dEb_dx;
+			particle.f_y = -dEr_dy - dEb_dy;
+			particle.f_z = -dEr_dz - dEb_dz;
 		}
 	}
 }
@@ -876,7 +847,7 @@ int main(int argc, char* argv[]) {
 	cin >> dt;
 	for (int it_cnt = 0; it_cnt < iterations_count; ++it_cnt) {
 		//count positions
-		for (int i = 0; i < prev.size(); ++i) {
+		for (unsigned int i = 0; i < prev.size(); ++i) {
 			for (unsigned int j = 0; j < prev[i].size(); ++j) {
 				curr[i][j].x = prev[i][j].x + prev[i][j].v_x * dt + prev[i][j].f_x * dt * dt / (2 * curr[i][j].mass);
 				curr[i][j].y = prev[i][j].y + prev[i][j].v_y * dt + prev[i][j].f_y * dt * dt / (2 * curr[i][j].mass);
@@ -886,7 +857,7 @@ int main(int argc, char* argv[]) {
 		//calculate
 		calc(curr, calcData.n_x, calcData.n_y, calcData.n_z, calcData.cutoff, calcData.potentials, calcData.tr.translation, false);
 		//count velocities
-		for (int i = 0; i < curr.size(); ++i) {
+		for (unsigned int i = 0; i < curr.size(); ++i) {
 			for (unsigned int j = 0; j < curr[i].size(); ++j) {
 				curr[i][j].v_x = prev[i][j].v_x + (prev[i][j].f_x + curr[i][j].f_x) / (2 * curr[i][j].mass) * dt;
 				curr[i][j].v_y = prev[i][j].v_y + (prev[i][j].f_y + curr[i][j].f_y) / (2 * curr[i][j].mass) * dt;
