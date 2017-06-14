@@ -106,7 +106,7 @@ public:
 class CalcData {
 public:
 	//without impurities
-	std::vector <std::vector<Atom>> bulk;
+	std::vector<Atom> bulk;
 	int bulk_atom_count;
 	//with one impurity for E_sol
 	std::vector <std::vector<Atom>> imp;
