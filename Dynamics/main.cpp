@@ -165,10 +165,10 @@ void dump(string filename, int size, vector <vector<Atom>> &contains) {
 	out.close();
 }
 
-int convert(string filename, int n_x, int n_y, int n_z, double lattice_constant, vector <Atom> &out, int bulk_atom_count) {
+int convert(string filename, int n_x, int n_y, int n_z, double lattice_constant, vector <vector<Atom>> &out, int bulk_atom_count) {
 
-	//out.resize(n_x * n_y * n_z);
-	//vector<Atom> init;
+	out.resize(n_x * n_y * n_z);
+	vector<Atom> init;
 
 	ifstream fin(filename, ifstream::in);
 
@@ -180,11 +180,9 @@ int convert(string filename, int n_x, int n_y, int n_z, double lattice_constant,
 	int size = 0;
 	fin >> size;
 	
-	/*if (size > bulk_atom_count) {
+	if (size > bulk_atom_count) {
 		out.resize(n_x * n_y * (n_z + 1));
-	}*/
-
-	out.resize(size);
+	}
 
 	while (fin.good()) {
 		Atom tmp;
@@ -192,20 +190,20 @@ int convert(string filename, int n_x, int n_y, int n_z, double lattice_constant,
 		fin >> tmp.x;
 		fin >> tmp.y;
 		fin >> tmp.z;
-		out.push_back(tmp);
+		init.push_back(tmp);
 	}
 	fin.close();
 
-	/*for (unsigned int i = 0; i < init.size(); ++i) {
+	for (unsigned int i = 0; i < init.size(); ++i) {
 		Atom tmp = init[i];
 		int x = int(tmp.x / lattice_constant); // step by lattice constant
 		int y = int(tmp.y / lattice_constant);
 		int z = int(tmp.z / lattice_constant);
 		out[z * n_y * n_x + y * n_x + x].push_back(tmp);
-	}*/
+	}
 	return size;
 }
-/*
+
 void calc_E_coh(CalcData &calcData) {
 	calcData.tr.make_it_pure();
 	calcData.E_full = full_energy(calcData.bulk, calcData.n_x, calcData.n_y, calcData.n_z, calcData.cutoff, calcData.potentials, calcData.tr.translation, false);
@@ -298,7 +296,7 @@ void calc_E_on_dim(CalcData &calcData) {
 	double E_adatom_on_surf = full_energy(calcData.adatom_on_surf, calcData.n_x, calcData.n_y, calcData.n_z + 1, calcData.cutoff, calcData.potentials, calcData.tr.translation, true);
 	calcData.E_on_dim = (E_dim_on_surf - E_surf) - 2 * (E_adatom_on_surf - E_surf);
 }
-*//*
+
 double fitting_BB(double x[6], CalcData &calcData) {
 	calcData.potentials[0].A_1 = x[0];
 	calcData.potentials[0].A_0 = x[1];
@@ -343,7 +341,7 @@ double fitting_AA(double x[6], CalcData &calcData) {
 	return sqrt(((calcData.E_in_dim_r - calcData.E_in_dim) * (calcData.E_in_dim_r - calcData.E_in_dim) / calcData.E_in_dim_r * calcData.E_in_dim_r +
 		(calcData.E_on_dim_r - calcData.E_on_dim) * (calcData.E_on_dim_r - calcData.E_on_dim) / calcData.E_on_dim_r * calcData.E_on_dim_r) / 2.0);
 }
-*/
+
 void print_potentials(RGL potentials[3], CalcData &calcData) {
 	ofstream fout("BB.txt", ofstream::out);
 
@@ -429,18 +427,18 @@ void print_potentials(RGL potentials[3], CalcData &calcData) {
 /*const double D = 933;//eV
 const double a = 4.085 / sqrt(2);*/
 
-void calc(vector<Atom> &contains, int n_x, int n_y, int n_z, double cutoff, RGL potentials[3], double translation[9], bool surface, double lattice_constant) {
+void calc(vector <vector<Atom>> &contains, int n_x, int n_y, int n_z, double cutoff, RGL potentials[3], double translation[9], bool surface) {
 
-	// double bulk_size_x = translation[0] + translation[3] + translation[6];
-	// double bulk_size_y = translation[1] + translation[4] + translation[7];
-	// double bulk_size_z = translation[2] + translation[5] + translation[8];
-	double bulk_size_x = lattice_constant * n_x;
-	double bulk_size_y = lattice_constant * n_y;
-	double bulk_size_z = lattice_constant * n_z;
+	double bulk_size_x = translation[0] + translation[3] + translation[6];
+	double bulk_size_y = translation[1] + translation[4] + translation[7];
+	double bulk_size_z = translation[2] + translation[5] + translation[8];
 
 	//#pragma omp parallel for reduction(+:E_full) num_threads(3) 
-
-		for (Atom& particle : contains) {
+	for (int i = 0; i < n_x * n_y * n_z; ++i) {
+		for (Atom& particle : contains[i]) {
+			int atomcell_x = i % n_x;
+			int atomcell_y = i / n_x % n_y;
+			int atomcell_z = i / (n_x * n_y);
 			double Eb = 0;
 			double dEb_dx = 0;
 			double dEb_dy = 0;
@@ -448,32 +446,49 @@ void calc(vector<Atom> &contains, int n_x, int n_y, int n_z, double cutoff, RGL 
 			double dEr_dx = 0;
 			double dEr_dy = 0;
 			double dEr_dz = 0;
-			int cnt = 0;
-						for (Atom particle2 : contains) {
+			for (int dx = -1; dx <= 1; ++dx) {
+				for (int dy = -1; dy <= 1; ++dy) {
+					for (int dz = -1; dz <= 1; ++dz) {
+						for (Atom particle2 : contains[
+							(atomcell_x + n_x + dx) % n_x +
+								(atomcell_y + n_y + dy) % n_y * n_x +
+								(atomcell_z + n_z + dz) % n_z * n_y * n_x]) {
 							//check for translation
 							if (abs(particle2.x - particle.x) > bulk_size_x / 2) { //more than one cell far
 								if (particle2.x > particle.x) { //move to neighbor cell
-									particle2.x -= bulk_size_x;
+									particle2.x -= translation[0];
+									particle2.y -= translation[1];
+									particle2.z -= translation[2];
 								}
 								else {
-									particle2.x += bulk_size_x;
+									particle2.x += translation[0];
+									particle2.y += translation[1];
+									particle2.z += translation[2];
 								}
 							}
 							if (abs(particle2.y - particle.y) > bulk_size_y / 2) { //more than one cell far
 								if (particle2.y > particle.y) { //move to neighbor cell
-									particle2.y -= bulk_size_y;
+									particle2.x -= translation[3];
+									particle2.y -= translation[4];
+									particle2.z -= translation[5];
 								}
 								else {
-									particle2.y += bulk_size_y;
+									particle2.x += translation[3];
+									particle2.y += translation[4];
+									particle2.z += translation[5];
 								}
 							}
 							if (!surface) {
 								if (abs(particle2.z - particle.z) > bulk_size_z / 2) { //more than one cell far
 									if (particle2.z > particle.z) { //move to neighbor cell
-										particle2.z -= bulk_size_z;
+										particle2.x -= translation[6];
+										particle2.y -= translation[7];
+										particle2.z -= translation[8];
 									}
 									else {
-										particle2.z += bulk_size_z;
+										particle2.x += translation[6];
+										particle2.y += translation[7];
+										particle2.z += translation[8];
 									}
 								}
 							}
@@ -516,7 +531,9 @@ void calc(vector<Atom> &contains, int n_x, int n_y, int n_z, double cutoff, RGL 
 
 							dEr_dz += tmp1 * (particle.z - particle2.z);
 						}
-			// cout << cnt << endl;
+					}
+				}
+			}
 			Eb = sqrt(Eb);
 			dEb_dx /= Eb;
 			dEb_dy /= Eb;
@@ -524,22 +541,23 @@ void calc(vector<Atom> &contains, int n_x, int n_y, int n_z, double cutoff, RGL 
 			particle.f_x = -dEr_dx - dEb_dx;
 			particle.f_y = -dEr_dy - dEb_dy;
 			particle.f_z = -dEr_dz - dEb_dz;
-			// particle.f_x = 0;
-			// particle.f_y = 0;
-			// particle.f_z = 0;
 		}
-	
+	}
 }
 
-void dump(string filename, vector<Atom> &contains) {
+void dump(string filename, vector <vector<Atom>> &contains) {
 	ofstream out(filename);
-	unsigned int size = contains.size();
+	unsigned int size = 0;
+	for (unsigned int i = 0; i < contains.size(); ++i) {
+		size += contains[i].size();
+	}
 	out << size << '\n';
 	out << "one frame of relaxation\n";
 	for (unsigned int i = 0; i < contains.size(); ++i) {
+		for (unsigned int j = 0; j < contains[i].size(); ++j) {
 			//out << setw(15) << contains[i][j].x << setw(15) << contains[i][j].y << setw(15) << contains[i][j].z << '\n';
-			out << contains[i].x << ' ' << contains[i].y << ' ' << contains[i].z << ' ' << i << '\n';
-		
+			out << contains[i][j].x << ' ' << contains[i][j].y << ' ' << contains[i][j].z << '\n';
+		}
 	}
 	out.close();
 }
@@ -578,16 +596,14 @@ int main(int argc, char* argv[]) {
 	fin >> calcData.E_coh_imp;
 	fin >> calcData.lattice_constant;
 
-	calcData.lattice_constant = 4.085;
-
 	calcData.cutoff = 1.7 * calcData.lattice_constant;
 
 	calcData.bulk_atom_count = convert(argv[1], calcData.n_x, calcData.n_y, calcData.n_z, calcData.lattice_constant, calcData.bulk, calcData.bulk_atom_count);
-	//convert(argv[2], calcData.n_x, calcData.n_y, calcData.n_z, calcData.lattice_constant, calcData.imp, calcData.bulk_atom_count);
-	//convert(argv[3], calcData.n_x, calcData.n_y, calcData.n_z, calcData.lattice_constant, calcData.dim_in_surf, calcData.bulk_atom_count);
-	//convert(argv[4], calcData.n_x, calcData.n_y, calcData.n_z, calcData.lattice_constant, calcData.adatom_in_surf, calcData.bulk_atom_count);
-	//convert(argv[5], calcData.n_x, calcData.n_y, calcData.n_z, calcData.lattice_constant, calcData.dim_on_surf, calcData.bulk_atom_count);
-	//convert(argv[6], calcData.n_x, calcData.n_y, calcData.n_z, calcData.lattice_constant, calcData.adatom_on_surf, calcData.bulk_atom_count);
+	convert(argv[2], calcData.n_x, calcData.n_y, calcData.n_z, calcData.lattice_constant, calcData.imp, calcData.bulk_atom_count);
+	convert(argv[3], calcData.n_x, calcData.n_y, calcData.n_z, calcData.lattice_constant, calcData.dim_in_surf, calcData.bulk_atom_count);
+	convert(argv[4], calcData.n_x, calcData.n_y, calcData.n_z, calcData.lattice_constant, calcData.adatom_in_surf, calcData.bulk_atom_count);
+	convert(argv[5], calcData.n_x, calcData.n_y, calcData.n_z, calcData.lattice_constant, calcData.dim_on_surf, calcData.bulk_atom_count);
+	convert(argv[6], calcData.n_x, calcData.n_y, calcData.n_z, calcData.lattice_constant, calcData.adatom_on_surf, calcData.bulk_atom_count);
 
 	calcData.tr.lattice_constant = calcData.lattice_constant;
 	calcData.tr.alpha = calcData.alpha;
@@ -793,8 +809,8 @@ int main(int argc, char* argv[]) {
 	calcData.potentials[0].A_0 = 0.1028;
 	calcData.potentials[0].s = 1.178;
 	calcData.potentials[0].p = 10.928;
-	calcData.potentials[0].q = 3.139;
-	calcData.potentials[0].r0 = 4.085 / sqrt(2.);
+	calcData.potentials[0].q = 3.14603;
+	calcData.potentials[0].r0 = 2.88853;
 
 	//A-B potential:
 	calcData.potentials[1].A_1 = 0;
@@ -815,10 +831,10 @@ int main(int argc, char* argv[]) {
 	calcData.tr.make_it_pure();
 	//calc(calcData.bulk, calcData.n_x, calcData.n_y, calcData.n_z, calcData.cutoff, calcData.potentials, calcData.tr.translation, false);
 
-	vector<Atom> prev = calcData.bulk;
-	vector<Atom> curr = calcData.bulk;
+	vector <vector<Atom>> prev = calcData.bulk;
+	vector <vector<Atom>> curr = calcData.bulk;
 	//calculate prev forces
-	calc(prev, calcData.n_x, calcData.n_y, calcData.n_z, calcData.cutoff, calcData.potentials, calcData.tr.translation, false, calcData.lattice_constant);
+	calc(prev, calcData.n_x, calcData.n_y, calcData.n_z, calcData.cutoff, calcData.potentials, calcData.tr.translation, false);
 	//dump iteration
 	cout << "frame_0.txt\n";
 	dump("frame_0.txt", curr);
@@ -832,18 +848,21 @@ int main(int argc, char* argv[]) {
 	for (int it_cnt = 0; it_cnt < iterations_count; ++it_cnt) {
 		//count positions
 		for (unsigned int i = 0; i < prev.size(); ++i) {
-				curr[i].x = prev[i].x + prev[i].v_x * dt + prev[i].f_x * dt * dt / (2 * curr[i].mass);
-				curr[i].y = prev[i].y + prev[i].v_y * dt + prev[i].f_y * dt * dt / (2 * curr[i].mass);
-				curr[i].z = prev[i].z + prev[i].v_z * dt + prev[i].f_z * dt * dt / (2 * curr[i].mass);
+			for (unsigned int j = 0; j < prev[i].size(); ++j) {
+				curr[i][j].x = prev[i][j].x + prev[i][j].v_x * dt + prev[i][j].f_x * dt * dt / (2 * curr[i][j].mass);
+				curr[i][j].y = prev[i][j].y + prev[i][j].v_y * dt + prev[i][j].f_y * dt * dt / (2 * curr[i][j].mass);
+				curr[i][j].z = prev[i][j].z + prev[i][j].v_z * dt + prev[i][j].f_z * dt * dt / (2 * curr[i][j].mass);
+			}
 		}
 		//calculate
-		// cout << calcData.n_x << ' ' << calcData.n_y << ' ' << calcData.n_z << std::endl;
-		calc(curr, calcData.n_x, calcData.n_y, calcData.n_z, calcData.cutoff, calcData.potentials, calcData.tr.translation, false, calcData.lattice_constant);
+		calc(curr, calcData.n_x, calcData.n_y, calcData.n_z, calcData.cutoff, calcData.potentials, calcData.tr.translation, false);
 		//count velocities
 		for (unsigned int i = 0; i < curr.size(); ++i) {
-				curr[i].v_x = prev[i].v_x + (prev[i].f_x + curr[i].f_x) / (2 * curr[i].mass) * dt;
-				curr[i].v_y = prev[i].v_y + (prev[i].f_y + curr[i].f_y) / (2 * curr[i].mass) * dt;
-				curr[i].v_z = prev[i].v_z + (prev[i].f_z + curr[i].f_z) / (2 * curr[i].mass) * dt;
+			for (unsigned int j = 0; j < curr[i].size(); ++j) {
+				curr[i][j].v_x = prev[i][j].v_x + (prev[i][j].f_x + curr[i][j].f_x) / (2 * curr[i][j].mass) * dt;
+				curr[i][j].v_y = prev[i][j].v_y + (prev[i][j].f_y + curr[i][j].f_y) / (2 * curr[i][j].mass) * dt;
+				curr[i][j].v_z = prev[i][j].v_z + (prev[i][j].f_z + curr[i][j].f_z) / (2 * curr[i][j].mass) * dt;
+			}
 		}
 		//dump iteration
 		cout << "frame_" << it_cnt + 1 << ".txt\n";
