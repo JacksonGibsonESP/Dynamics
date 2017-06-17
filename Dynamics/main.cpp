@@ -180,7 +180,7 @@ int convert(string filename, int n_x, int n_y, int n_z, double lattice_constant,
 	int size = 0;
 	fin >> size;
 	
-	if (size > bulk_atom_count) {
+	if (bulk_atom_count != 0 && size > bulk_atom_count) {
 		out.resize(n_x * n_y * (n_z + 1));
 	}
 
@@ -190,6 +190,9 @@ int convert(string filename, int n_x, int n_y, int n_z, double lattice_constant,
 		fin >> tmp.x;
 		fin >> tmp.y;
 		fin >> tmp.z;
+		if (tmp.impurity) {
+			tmp.mass = 58.6934;
+		}
 		init.push_back(tmp);
 	}
 	fin.close();
@@ -556,7 +559,7 @@ void dump(string filename, vector <vector<Atom>> &contains) {
 	for (unsigned int i = 0; i < contains.size(); ++i) {
 		for (unsigned int j = 0; j < contains[i].size(); ++j) {
 			//out << setw(15) << contains[i][j].x << setw(15) << contains[i][j].y << setw(15) << contains[i][j].z << '\n';
-			out << contains[i][j].x << ' ' << contains[i][j].y << ' ' << contains[i][j].z << '\n';
+			out << contains[i][j].x << ' ' << contains[i][j].y << ' ' << contains[i][j].z << ' ' << contains[i][j].impurity << '\n';
 		}
 	}
 	out.close();
@@ -598,7 +601,7 @@ int main(int argc, char* argv[]) {
 
 	calcData.cutoff = 1.7 * calcData.lattice_constant;
 
-	calcData.bulk_atom_count = convert(argv[1], calcData.n_x, calcData.n_y, calcData.n_z, calcData.lattice_constant, calcData.bulk, calcData.bulk_atom_count);
+	calcData.bulk_atom_count = convert(argv[1], calcData.n_x, calcData.n_y, calcData.n_z, calcData.lattice_constant, calcData.bulk, 0);
 	convert(argv[2], calcData.n_x, calcData.n_y, calcData.n_z, calcData.lattice_constant, calcData.imp, calcData.bulk_atom_count);
 	convert(argv[3], calcData.n_x, calcData.n_y, calcData.n_z, calcData.lattice_constant, calcData.dim_in_surf, calcData.bulk_atom_count);
 	convert(argv[4], calcData.n_x, calcData.n_y, calcData.n_z, calcData.lattice_constant, calcData.adatom_in_surf, calcData.bulk_atom_count);
@@ -831,10 +834,10 @@ int main(int argc, char* argv[]) {
 	calcData.tr.make_it_pure();
 	//calc(calcData.bulk, calcData.n_x, calcData.n_y, calcData.n_z, calcData.cutoff, calcData.potentials, calcData.tr.translation, false);
 
-	vector <vector<Atom>> prev = calcData.bulk;
-	vector <vector<Atom>> curr = calcData.bulk;
+	vector <vector<Atom>> prev = calcData.dim_on_surf;
+	vector <vector<Atom>> curr = calcData.dim_on_surf;
 	//calculate prev forces
-	calc(prev, calcData.n_x, calcData.n_y, calcData.n_z, calcData.cutoff, calcData.potentials, calcData.tr.translation, false);
+	calc(prev, calcData.n_x, calcData.n_y, calcData.n_z + 1, calcData.cutoff, calcData.potentials, calcData.tr.translation, true);
 	//dump iteration
 	cout << "frame_0.txt\n";
 	dump("frame_0.txt", curr);
@@ -855,7 +858,7 @@ int main(int argc, char* argv[]) {
 			}
 		}
 		//calculate
-		calc(curr, calcData.n_x, calcData.n_y, calcData.n_z, calcData.cutoff, calcData.potentials, calcData.tr.translation, false);
+		calc(curr, calcData.n_x, calcData.n_y, calcData.n_z + 1, calcData.cutoff, calcData.potentials, calcData.tr.translation, true);
 		//count velocities
 		for (unsigned int i = 0; i < curr.size(); ++i) {
 			for (unsigned int j = 0; j < curr[i].size(); ++j) {
