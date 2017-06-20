@@ -648,18 +648,10 @@ int main(int argc, char* argv[]) {
 	std::cout << "  F(X) = " << ynewlo << "\n";
 	std::cout << "\n";
 
-	/*	annealing(fitting_BB, n, start, xmin);
-	ynewlo = fitting_BB(xmin);*/
-
-	//*
-	/*GRS(fitting_BB, n, start, xmin, calcData);
+	GRS(fitting_BB, n, start, xmin, calcData);
 	ynewlo = fitting_BB(xmin, calcData);
-	/*/
-	/*NelderMead(fitting_BB, n, start, xmin);
-	ynewlo = fitting_BB(xmin);
-	//*/
 
-	/*std::cout << "\n";
+	std::cout << "\n";
 	std::cout << "  Estimate of minimizing value X*:\n";
 	std::cout << "\n";
 
@@ -704,8 +696,9 @@ int main(int argc, char* argv[]) {
 	std::cout << "  F(X) = " << ynewlo << "\n";
 	std::cout << "\n";
 
-	//GRS(fitting_AB, n, start, xmin, calcData);
-		
+	GRS(fitting_AB, n, start, xmin, calcData);
+	ynewlo = fitting_AB(xmin, calcData);
+
 	std::cout << "\n";
 	std::cout << "  Estimate of minimizing value X*:\n";
 	std::cout << "\n";
@@ -751,7 +744,8 @@ int main(int argc, char* argv[]) {
 	std::cout << "\n";
 	std::cout << "  F(X) = " << ynewlo << "\n";
 
-	//GRS(fitting_AA, n, start, xmin, calcData);
+	GRS(fitting_AA, n, start, xmin, calcData);
+	ynewlo = fitting_AA(xmin, calcData);
 
 	std::cout << "\n";
 	std::cout << "  Estimate of minimizing value X*:\n";
@@ -805,31 +799,31 @@ int main(int argc, char* argv[]) {
 	auto end_time = chrono::high_resolution_clock::now();
 	
 
-	std::cout << '\n' << chrono::duration_cast<chrono::milliseconds>(end_time - start_time).count() << " ms\n";
-	*/
+	std::cout << '\n' << chrono::duration_cast<chrono::milliseconds>(end_time - start_time).count() << " ms\n";*/
+	
 	//B-B potential:
 	calcData.potentials[0].A_1 = 0;
 	calcData.potentials[0].A_0 = 0.1028;
 	calcData.potentials[0].s = 1.178;
-	calcData.potentials[0].p = 10.928;
-	calcData.potentials[0].q = 3.14603;
+	calcData.potentials[0].p = 10.9244;
+	calcData.potentials[0].q = 3.139;
 	calcData.potentials[0].r0 = 2.88853;
 
 	//A-B potential:
 	calcData.potentials[1].A_1 = 0;
-	calcData.potentials[1].A_0 = 0.042866;
-	calcData.potentials[1].s = 0.990775;
-	calcData.potentials[1].p = 16.3642;
-	calcData.potentials[1].q = 1.189;
-	calcData.potentials[1].r0 = 2.45985;
+	calcData.potentials[1].A_0 = 0.0352939;
+	calcData.potentials[1].s = 1.07;
+	calcData.potentials[1].p = 15.7684;
+	calcData.potentials[1].q = 1.43354;
+	calcData.potentials[1].r0 = 2.49114;
 
 	//A-A potential:
 	calcData.potentials[2].A_1 = 0;
-	calcData.potentials[2].A_0 = 0.0377356;
-	calcData.potentials[2].s = 1.07419;
-	calcData.potentials[2].p = 17.214;
-	calcData.potentials[2].q = 1.42031;
-	calcData.potentials[2].r0 = 3.04121;
+	calcData.potentials[2].A_0 = 0.0441081;
+	calcData.potentials[2].s = 1.09737;
+	calcData.potentials[2].p = 15.9826;
+	calcData.potentials[2].q = 1.21911;
+	calcData.potentials[2].r0 = 2.95473;
 
 	calcData.tr.make_it_pure();
 	//calc(calcData.bulk, calcData.n_x, calcData.n_y, calcData.n_z, calcData.cutoff, calcData.potentials, calcData.tr.translation, false);
